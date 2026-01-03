@@ -2,7 +2,17 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
 
 // Configure axios defaults
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || ''
+const API_URL = import.meta.env.VITE_API_URL || ''
+axios.defaults.baseURL = API_URL
+
+// Debug: Log API configuration (only in development or if API_URL is missing)
+if (import.meta.env.DEV || !API_URL) {
+  console.log('🔧 API Configuration:', {
+    VITE_API_URL: import.meta.env.VITE_API_URL,
+    baseURL: axios.defaults.baseURL || '(empty - using relative URLs)',
+    note: API_URL ? '✅ Using backend URL' : '⚠️ No VITE_API_URL set - requests will go to current domain'
+  })
+}
 
 const AuthContext = createContext()
 

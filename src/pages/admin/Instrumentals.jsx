@@ -344,7 +344,7 @@ const InstrumentalCard = ({ instrumental, playSong, onEdit, onArchive, onDelete,
     <div style={{
       width: '100%',
       aspectRatio: '1',
-      background: instrumental.cover_image_path ? `url(http://localhost:5000${instrumental.cover_image_path})` : '#2a2a2a',
+      background: instrumental.cover_image_path ? `url(${import.meta.env.VITE_API_URL || ''}${instrumental.cover_image_path})` : '#2a2a2a',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       borderRadius: '8px',

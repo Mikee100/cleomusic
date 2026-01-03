@@ -418,7 +418,7 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
       videoElement.crossOrigin = 'anonymous'
       videoElement.preload = 'metadata'
       videoElement.muted = true
-      videoElement.src = `http://localhost:5000${video.file_path}`
+      videoElement.src = `${import.meta.env.VITE_API_URL || ''}${video.file_path}`
       
       const captureFrame = () => {
         try {
@@ -488,7 +488,7 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
         width: '100%',
         aspectRatio: '16/9',
         background: video.thumbnail_path 
-          ? `url(http://localhost:5000${video.thumbnail_path})` 
+          ? `url(${import.meta.env.VITE_API_URL || ''}${video.thumbnail_path})` 
           : thumbnailUrl
             ? `url(${thumbnailUrl})`
             : video.file_path 
@@ -899,7 +899,7 @@ const VideoPlayer = ({ video, isMinimized, onMinimize, onMaximize, onClose }) =>
         }}>
           <video
             ref={videoRef}
-            src={`http://localhost:5000${video.file_path}`}
+            src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
             controls
             style={{
               width: '100%',
@@ -1069,7 +1069,7 @@ const VideoPlayer = ({ video, isMinimized, onMinimize, onMaximize, onClose }) =>
         }}>
           <video
             ref={videoRef}
-            src={`http://localhost:5000${video.file_path}`}
+            src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
             controls
             autoPlay
             style={{

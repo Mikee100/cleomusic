@@ -279,7 +279,7 @@ const Home = () => {
                         height: '40px',
                         borderRadius: '6px',
                         background: song.cover_image_path 
-                          ? `url(http://localhost:5000${song.cover_image_path})` 
+                          ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})` 
                           : '#2a2a2a',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',

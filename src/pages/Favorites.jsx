@@ -193,7 +193,7 @@ const Favorites = () => {
               <div style={{
                 width: '100%',
                 aspectRatio: '1',
-                background: song.cover_image_path ? `url(http://localhost:5000${song.cover_image_path})` : '#2a2a2a',
+                background: song.cover_image_path ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})` : '#2a2a2a',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 borderRadius: '8px',

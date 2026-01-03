@@ -413,7 +413,7 @@ const PhotoCard = ({ photo, onEdit, onArchive, onDelete, onSelect, isSelected, o
     <div style={{
       width: '100%',
       aspectRatio: '1',
-      background: photo.file_path ? `url(http://localhost:5000${photo.file_path})` : '#2a2a2a',
+      background: photo.file_path ? `url(${import.meta.env.VITE_API_URL || ''}${photo.file_path})` : '#2a2a2a',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       borderRadius: '8px',

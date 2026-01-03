@@ -33,7 +33,7 @@ const MusicPlayer = () => {
       const wasPlaying = isPlaying
       
       // Update src programmatically to avoid reload
-      audioRef.current.src = `http://localhost:5000${currentSong.file_path}`
+      audioRef.current.src = `${API_URL}${currentSong.file_path}`
       audioRef.current.load()
       
       // Restore play state if it was playing
@@ -148,7 +148,7 @@ const MusicPlayer = () => {
               width: '50px',
               height: '50px',
               background: currentSong.cover_image_path
-                ? `url(http://localhost:5000${currentSong.cover_image_path})`
+                ? `url(${API_URL}${currentSong.cover_image_path})`
                 : 'rgba(255,255,255,0.2)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
@@ -364,7 +364,7 @@ const MusicPlayer = () => {
             minWidth: isMobile ? '50px' : '60px',
             height: isMobile ? '50px' : '60px',
             background: currentSong.cover_image_path
-              ? `url(http://localhost:5000${currentSong.cover_image_path})`
+              ? `url(${API_URL}${currentSong.cover_image_path})`
               : '#2a2a2a',
             backgroundSize: 'cover',
             backgroundPosition: 'center',

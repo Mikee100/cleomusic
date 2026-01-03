@@ -426,7 +426,7 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
       {/* Video */}
       <video
         ref={videoElementRef}
-        src={`http://localhost:5000${video.file_path}`}
+        src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
         loop
         muted={false}
         playsInline

@@ -111,7 +111,7 @@ const InstrumentalsSection = () => {
               width: '100%',
               aspectRatio: '1',
               background: instrumental.cover_image_path
-                ? `url(http://localhost:5000${instrumental.cover_image_path})`
+                ? `url(${import.meta.env.VITE_API_URL || ''}${instrumental.cover_image_path})`
                 : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',

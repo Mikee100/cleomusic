@@ -150,7 +150,7 @@ const AlbumDetail = () => {
             width: '300px',
             aspectRatio: '1',
             background: albumData.album.cover_image_path 
-              ? `url(http://localhost:5000${albumData.album.cover_image_path})` 
+              ? `url(${import.meta.env.VITE_API_URL || ''}${albumData.album.cover_image_path})` 
               : '#2a2a2a',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -294,7 +294,7 @@ const AlbumDetail = () => {
                         width: '50px',
                         height: '50px',
                         background: song.cover_image_path 
-                          ? `url(http://localhost:5000${song.cover_image_path})` 
+                          ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})` 
                           : '#333',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
@@ -393,7 +393,7 @@ const AlbumDetail = () => {
                   width: '60px',
                   height: '60px',
                   background: song.cover_image_path 
-                    ? `url(http://localhost:5000${song.cover_image_path})` 
+                    ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})` 
                     : '#2a2a2a',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',

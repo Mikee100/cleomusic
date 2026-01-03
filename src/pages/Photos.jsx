@@ -134,7 +134,7 @@ const Photos = () => {
               <div style={{
                 width: '100%',
                 aspectRatio: '1',
-                background: photo.file_path ? `url(http://localhost:5000${photo.file_path})` : '#2a2a2a',
+                background: photo.file_path ? `url(${import.meta.env.VITE_API_URL || ''}${photo.file_path})` : '#2a2a2a',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }} />
@@ -209,7 +209,7 @@ const PhotoModal = ({ photo, onClose }) => (
         <FiX />
       </button>
       <img
-        src={`http://localhost:5000${photo.file_path}`}
+        src={`${import.meta.env.VITE_API_URL || ''}${photo.file_path}`}
         alt={photo.title}
         style={{
           maxWidth: '100%',

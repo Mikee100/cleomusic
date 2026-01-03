@@ -3,6 +3,7 @@ import { usePlayer } from '../context/PlayerContext'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import { useResponsive } from '../hooks/useResponsive'
+import { API_URL } from '../utils/api.js'
 import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX } from 'react-icons/fi'
 
 const MusicPlayer = () => {

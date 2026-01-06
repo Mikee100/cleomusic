@@ -5,7 +5,7 @@ import ReactionsModal from '../../components/ReactionsModal'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
   FiUpload, FiArchive, FiTrash2, FiEdit, FiMusic, FiPlay, 
-  FiCheckSquare, FiSearch, FiX, FiMessageCircle
+  FiCheckSquare, FiSearch, FiX, FiMessageCircle, FiLoader
 } from 'react-icons/fi'
 
 const Songs = () => {
@@ -29,6 +29,7 @@ const Songs = () => {
   const [musicFile, setMusicFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
   const [viewingReactions, setViewingReactions] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     fetchSongs()
@@ -60,6 +61,7 @@ const Songs = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault()
+    setIsUploading(true)
     const uploadData = new FormData()
     uploadData.append('title', formData.title)
     uploadData.append('artist', formData.artist)
@@ -80,6 +82,8 @@ const Songs = () => {
       fetchSongs()
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -373,6 +377,7 @@ const Songs = () => {
           setCoverFile={setCoverFile}
           albums={albums}
           onSubmit={handleUpload}
+          isUploading={isUploading}
           onClose={() => {
             setShowUploadModal(false)
             setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
@@ -592,7 +597,7 @@ const Modal = ({ children }) => (
   </div>
 )
 
-const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, albums, onSubmit, onClose }) => (
+const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, albums, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
       <h2>Upload Song</h2>
@@ -694,6 +699,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           type="file"
           accept="audio/*"
           onChange={(e) => setMusicFile(e.target.files[0])}
+          disabled={isUploading}
           required
           style={{
             width: '100%',
@@ -711,6 +717,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           type="file"
           accept="image/*"
           onChange={(e) => setCoverFile(e.target.files[0])}
+          disabled={isUploading}
           style={{
             width: '100%',
             padding: '0.75rem',
@@ -724,6 +731,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button
           type="submit"
+          disabled={isUploading}
           style={{
             flex: 1,
             padding: '0.75rem',
@@ -733,21 +741,42 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
             color: '#fff',
             fontSize: '1rem',
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: isUploading ? 'wait' : 'pointer',
+            opacity: isUploading ? 0.6 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem'
           }}
         >
-          Upload
+          {isUploading ? (
+            <>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid #fff',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              Uploading...
+            </>
+          ) : (
+            'Upload'
+          )}
         </button>
         <button
           type="button"
           onClick={onClose}
+          disabled={isUploading}
           style={{
             padding: '0.75rem 1.5rem',
             background: 'transparent',
             border: '1px solid #333',
             borderRadius: '8px',
             color: '#fff',
-            cursor: 'pointer'
+            cursor: isUploading ? 'not-allowed' : 'pointer',
+            opacity: isUploading ? 0.5 : 1
           }}
         >
           Cancel

@@ -19,6 +19,7 @@ const Albums = () => {
     is_active: true
   })
   const [coverFile, setCoverFile] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     fetchAlbums()
@@ -40,6 +41,7 @@ const Albums = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setIsUploading(true)
     const uploadData = new FormData()
     uploadData.append('name', formData.name)
     uploadData.append('artist', formData.artist)
@@ -66,6 +68,8 @@ const Albums = () => {
       fetchAlbums()
     } catch (err) {
       alert(err.response?.data?.error || 'Operation failed')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -253,6 +257,7 @@ const Albums = () => {
           setCoverFile={setCoverFile}
           editingAlbum={editingAlbum}
           onSubmit={handleSubmit}
+          isUploading={isUploading}
           onClose={() => {
             setShowCreateModal(false)
             setEditingAlbum(null)
@@ -266,7 +271,7 @@ const Albums = () => {
   )
 }
 
-const AlbumModal = ({ formData, setFormData, coverFile, setCoverFile, editingAlbum, onSubmit, onClose }) => (
+const AlbumModal = ({ formData, setFormData, coverFile, setCoverFile, editingAlbum, onSubmit, onClose, isUploading }) => (
   <div style={{
     position: 'fixed',
     top: 0,
@@ -386,6 +391,7 @@ const AlbumModal = ({ formData, setFormData, coverFile, setCoverFile, editingAlb
             type="file"
             accept="image/*"
             onChange={(e) => setCoverFile(e.target.files[0])}
+            disabled={isUploading}
             style={{
               width: '100%',
               padding: '0.75rem',
@@ -410,6 +416,7 @@ const AlbumModal = ({ formData, setFormData, coverFile, setCoverFile, editingAlb
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button
             type="submit"
+            disabled={isUploading}
             style={{
               flex: 1,
               padding: '0.75rem',
@@ -419,21 +426,42 @@ const AlbumModal = ({ formData, setFormData, coverFile, setCoverFile, editingAlb
               color: '#fff',
               fontSize: '1rem',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: isUploading ? 'wait' : 'pointer',
+              opacity: isUploading ? 0.6 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
             }}
           >
-            {editingAlbum ? 'Update' : 'Create'}
+            {isUploading ? (
+              <>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTop: '2px solid #fff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                {editingAlbum ? 'Updating...' : 'Creating...'}
+              </>
+            ) : (
+              editingAlbum ? 'Update' : 'Create'
+            )}
           </button>
           <button
             type="button"
             onClick={onClose}
+            disabled={isUploading}
             style={{
               padding: '0.75rem 1.5rem',
               background: 'transparent',
               border: '1px solid #333',
               borderRadius: '8px',
               color: '#fff',
-              cursor: 'pointer'
+              cursor: isUploading ? 'not-allowed' : 'pointer',
+              opacity: isUploading ? 0.5 : 1
             }}
           >
             Cancel

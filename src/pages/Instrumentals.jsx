@@ -21,12 +21,9 @@ const Instrumentals = () => {
   const [genres, setGenres] = useState([])
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchInstrumentals()
-      fetchGenres()
-    } else {
-      setLoading(false)
-    }
+    // Allow free users to access instrumentals (they'll get interrupted after 20 seconds)
+    fetchInstrumentals()
+    fetchGenres()
   }, [subscription, user, searchTerm, selectedGenre])
 
   const fetchGenres = async () => {
@@ -89,38 +86,8 @@ const Instrumentals = () => {
   }
 
   const handlePlaySong = (instrumental) => {
-    if (!subscription && user?.role !== 'admin') {
-      setShowSubscriptionModal(true)
-      return
-    }
+    // Allow free users to play instrumentals (they'll get interrupted after 20 seconds)
     playSong(instrumental, instrumentals)
-  }
-
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '4rem 2rem' }}>
-        <h1 style={{ marginBottom: '1rem', fontSize: isMobile ? '1.5rem' : '2rem' }}>Instrumentals</h1>
-        <p style={{ marginBottom: '2rem', color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Subscribe to access premium instrumentals</p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: isMobile ? '0.875rem 1.5rem' : '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: isMobile ? '0.875rem' : '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
   }
 
   return (

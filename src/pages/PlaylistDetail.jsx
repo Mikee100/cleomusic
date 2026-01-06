@@ -24,11 +24,8 @@ const PlaylistDetail = () => {
   const [removingSongId, setRemovingSongId] = useState(null)
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchPlaylist()
-    } else {
-      setLoading(false)
-    }
+    // Allow free users to access playlists (they'll get interrupted after 20 seconds when playing)
+    fetchPlaylist()
   }, [id, subscription, user])
 
   const fetchPlaylist = async () => {
@@ -97,48 +94,15 @@ const PlaylistDetail = () => {
   }
 
   const handlePlayAll = () => {
-    if (!subscription && user?.role !== 'admin') {
-      setShowSubscriptionModal(true)
-      return
-    }
+    // Allow free users to play songs (they'll get interrupted after 20 seconds)
     if (playlist.songs.length > 0) {
       playSong(playlist.songs[0], playlist.songs)
     }
   }
 
   const handlePlaySong = (song) => {
-    if (!subscription && user?.role !== 'admin') {
-      setShowSubscriptionModal(true)
-      return
-    }
+    // Allow free users to play songs (they'll get interrupted after 20 seconds)
     playSong(song, playlist.songs)
-  }
-
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '4rem 2rem' }}>
-        <h1 style={{ marginBottom: '1rem', fontSize: isMobile ? '1.5rem' : '2rem' }}>Playlist</h1>
-        <p style={{ marginBottom: '2rem', color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Subscribe to view playlists</p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: isMobile ? '0.875rem 1.5rem' : '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: isMobile ? '0.875rem' : '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
   }
 
   if (loading) {

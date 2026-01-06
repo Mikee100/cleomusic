@@ -3,10 +3,12 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import SubscriptionModal from '../components/SubscriptionModal'
 import Interactions from '../components/Interactions'
-import { FiImage, FiSearch, FiX } from 'react-icons/fi'
+import { useResponsive } from '../hooks/useResponsive'
+import { FiImage, FiSearch, FiX, FiMaximize2 } from 'react-icons/fi'
 
 const Photos = () => {
   const { user, subscription } = useAuth()
+  const { isMobile } = useResponsive()
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -63,15 +65,21 @@ const Photos = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: '2rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: isMobile ? '1rem' : '2rem' }}>
+      <div style={{ marginBottom: isMobile ? '1.5rem' : '2rem' }}>
+        <h1 style={{ 
+          fontSize: isMobile ? '1.5rem' : '2rem', 
+          marginBottom: '0.5rem', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.5rem' 
+        }}>
           <FiImage /> Photos Gallery
         </h1>
-        <p style={{ color: '#999' }}>Browse our collection of photos</p>
+        <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Browse our collection of photos</p>
       </div>
 
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: isMobile ? '1.5rem' : '2rem' }}>
         <div style={{ position: 'relative', maxWidth: '500px' }}>
           <FiSearch style={{ 
             position: 'absolute', 
@@ -107,8 +115,10 @@ const Photos = () => {
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: '1.5rem'
+          gridTemplateColumns: isMobile 
+            ? 'repeat(auto-fill, minmax(150px, 1fr))' 
+            : 'repeat(auto-fill, minmax(250px, 1fr))',
+          gap: isMobile ? '0.75rem' : '1.5rem'
         }}>
           {photos.map(photo => (
             <div
@@ -120,7 +130,8 @@ const Photos = () => {
                 overflow: 'hidden',
                 border: '1px solid #333',
                 cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                position: 'relative'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)'
@@ -131,22 +142,65 @@ const Photos = () => {
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
-              <div style={{
-                width: '100%',
-                aspectRatio: '1',
-                background: photo.file_path ? `url(${import.meta.env.VITE_API_URL || ''}${photo.file_path})` : '#2a2a2a',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center'
-              }} />
-              <div style={{ padding: '1rem' }}>
-                <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>{photo.title}</h3>
-                {photo.description && (
-                  <p style={{ color: '#999', fontSize: '0.875rem', margin: 0, marginBottom: '0.5rem' }}>
-                    {photo.description}
-                  </p>
-                )}
-                <Interactions contentType="photo" contentId={photo.id} compact={true} />
+              <div 
+                style={{
+                  width: '100%',
+                  aspectRatio: '1',
+                  background: photo.file_path ? `url(${import.meta.env.VITE_API_URL || ''}${photo.file_path})` : '#2a2a2a',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+                onMouseEnter={(e) => {
+                  const overlay = e.currentTarget.querySelector('.photo-hover-overlay')
+                  if (overlay) overlay.style.opacity = '1'
+                }}
+                onMouseLeave={(e) => {
+                  const overlay = e.currentTarget.querySelector('.photo-hover-overlay')
+                  if (overlay) overlay.style.opacity = '0'
+                }}
+              >
+                {/* Hover overlay with view icon */}
+                <div 
+                  className="photo-hover-overlay"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: 0,
+                    transition: 'opacity 0.2s',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  <FiMaximize2 style={{ fontSize: '2rem', color: '#fff' }} />
+                </div>
               </div>
+              {!isMobile && (
+                <div style={{ padding: '1rem' }}>
+                  <h3 style={{ margin: 0, marginBottom: '0.5rem', fontSize: '0.875rem' }}>{photo.title}</h3>
+                  {photo.description && (
+                    <p style={{ 
+                      color: '#999', 
+                      fontSize: '0.75rem', 
+                      margin: 0, 
+                      marginBottom: '0.5rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {photo.description}
+                    </p>
+                  )}
+                  <Interactions contentType="photo" contentId={photo.id} compact={true} />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -166,73 +220,135 @@ const Photos = () => {
   )
 }
 
-const PhotoModal = ({ photo, onClose }) => (
-  <div
-    onClick={onClose}
-    style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.95)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-      padding: '2rem',
-      cursor: 'pointer'
-    }}
-  >
+const PhotoModal = ({ photo, onClose }) => {
+  const { isMobile } = useResponsive()
+  
+  return (
     <div
-      onClick={(e) => e.stopPropagation()}
+      onClick={onClose}
       style={{
-        maxWidth: '90vw',
-        maxHeight: '90vh',
-        position: 'relative'
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.95)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: isMobile ? '1rem' : '2rem',
+        cursor: 'pointer'
       }}
     >
-      <button
-        onClick={onClose}
+      <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'absolute',
-          top: '-3rem',
-          right: 0,
-          background: 'transparent',
-          border: 'none',
-          color: '#fff',
-          fontSize: '2rem',
-          cursor: 'pointer',
-          zIndex: 2001
+          maxWidth: '95vw',
+          maxHeight: '95vh',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
-        <FiX />
-      </button>
-      <img
-        src={`${import.meta.env.VITE_API_URL || ''}${photo.file_path}`}
-        alt={photo.title}
-        style={{
-          maxWidth: '100%',
-          maxHeight: '90vh',
+        {/* Photo container */}
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
           borderRadius: '8px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-        }}
-      />
-      <div style={{
-        background: '#1a1a1a',
-        padding: '1.5rem',
-        borderRadius: '0 0 8px 8px',
-        marginTop: '-4px'
-      }}>
-        <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>{photo.title}</h3>
-        {photo.description && (
-          <p style={{ color: '#999', margin: 0, marginBottom: '1rem' }}>{photo.description}</p>
-        )}
-        <Interactions contentType="photo" contentId={photo.id} compact={false} />
+          position: 'relative'
+        }}>
+          {/* Close button - Inside the image container, top right corner */}
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: isMobile ? '10px' : '15px',
+              right: isMobile ? '10px' : '15px',
+              background: 'rgba(0, 0, 0, 0.7)',
+              border: '2px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '50%',
+              color: '#fff',
+              fontSize: isMobile ? '1.25rem' : '1.5rem',
+              cursor: 'pointer',
+              zIndex: 2001,
+              width: isMobile ? '40px' : '48px',
+              height: isMobile ? '40px' : '48px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.9)'
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.6)'
+              e.currentTarget.style.transform = 'scale(1.1)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.7)'
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+            title="Close"
+          >
+            <FiX />
+          </button>
+          
+          <img
+            src={`${import.meta.env.VITE_API_URL || ''}${photo.file_path}`}
+            alt={photo.title}
+            style={{
+              maxWidth: '100%',
+              maxHeight: isMobile ? '70vh' : '85vh',
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+            }}
+          />
+        </div>
+        
+        {/* Photo info - Below image */}
+        <div style={{
+          background: '#1a1a1a',
+          padding: isMobile ? '1rem' : '1.5rem',
+          borderRadius: '0 0 8px 8px',
+          marginTop: '0.5rem',
+          width: '100%',
+          maxWidth: '100%'
+        }}>
+          <h3 style={{ 
+            margin: 0, 
+            marginBottom: '0.5rem',
+            fontSize: isMobile ? '1rem' : '1.25rem'
+          }}>
+            {photo.title}
+          </h3>
+          {photo.description && (
+            <p style={{ 
+              color: '#999', 
+              margin: 0, 
+              marginBottom: '1rem',
+              fontSize: isMobile ? '0.875rem' : '1rem',
+              lineHeight: '1.5'
+            }}>
+              {photo.description}
+            </p>
+          )}
+          <Interactions contentType="photo" contentId={photo.id} compact={false} />
+        </div>
       </div>
     </div>
-  </div>
-)
+  )
+}
 
 export default Photos
 

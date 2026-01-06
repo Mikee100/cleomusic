@@ -30,11 +30,8 @@ const Home = () => {
   }
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchData()
-    } else {
-      setLoading(false)
-    }
+    // Allow free users to access content (they'll get interrupted after 20 seconds)
+    fetchData()
   }, [subscription, user])
 
   const fetchData = async () => {
@@ -42,12 +39,12 @@ const Home = () => {
       setLoading(true)
       const [songsResponse, albumsResponse, userStatsResponse] = await Promise.all([
         axios.get('/api/songs', { params: { limit: 12 } }).catch(() => ({ data: { songs: [] } })),
-        axios.get('/api/admin/albums').catch(() => ({ data: [] })),
+        axios.get('/api/albums', { params: { limit: 12 } }).catch(() => ({ data: { albums: [] } })),
         axios.get('/api/users/stats').catch(() => ({ data: null }))
       ])
 
       setSongs(songsResponse.data.songs || [])
-      setAlbums(albumsResponse.data || [])
+      setAlbums(albumsResponse.data.albums || [])
       setUserStats(userStatsResponse.data)
 
       // Check favorites
@@ -84,49 +81,8 @@ const Home = () => {
   }
 
   const handlePlaySong = (song) => {
-    if (!subscription && user?.role !== 'admin') {
-      setShowSubscriptionModal(true)
-      return
-    }
+    // Allow free users to play songs (they'll get interrupted after 20 seconds)
     playSong(song, songs)
-  }
-
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: window.innerWidth < 768 ? '2rem 1rem' : '4rem 2rem' }}>
-        <h1 style={{ 
-          marginBottom: '1rem', 
-          fontSize: window.innerWidth < 768 ? '1.5rem' : '2rem' 
-        }}>
-          Welcome to {artistInfo.name}
-        </h1>
-        <p style={{ 
-          marginBottom: '2rem', 
-          color: '#999',
-          fontSize: window.innerWidth < 768 ? '0.875rem' : '1rem'
-        }}>
-          Subscribe to access premium music
-        </p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: window.innerWidth < 768 ? '0.875rem 1.5rem' : '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: window.innerWidth < 768 ? '0.875rem' : '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
   }
 
   return (

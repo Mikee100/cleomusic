@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import { useResponsive } from '../hooks/useResponsive'
 import { API_URL } from '../utils/api.js'
-import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX } from 'react-icons/fi'
+import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX, FiLoader } from 'react-icons/fi'
+import UpgradeInterruptionModal from './UpgradeInterruptionModal'
 
 const MusicPlayer = () => {
   const { currentSong, isPlaying, setIsPlaying, nextSong, previousSong, isMinimized, setIsMinimized, clearPlayer } = usePlayer()
@@ -13,8 +14,15 @@ const MusicPlayer = () => {
   const audioRef = useRef(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [playError, setPlayError] = useState(null)
+  const [showInterruptionModal, setShowInterruptionModal] = useState(false)
   const previousSongIdRef = useRef(null)
   const playTrackedRef = useRef(new Set())
+  const playPromiseRef = useRef(null)
+  const retryCountRef = useRef(0)
+  const interruptionTimerRef = useRef(null)
+  const isFreeUser = !subscription && user?.role !== 'admin'
 
   // Track play when song starts playing
   const trackPlay = async (songId) => {
@@ -28,62 +36,229 @@ const MusicPlayer = () => {
     }
   }
 
+  // Attempt to play audio with retry logic
+  const attemptPlay = async (audio, retries = 3) => {
+    try {
+      // Wait for audio to have enough data buffered
+      if (audio.readyState < 3) { // HAVE_FUTURE_DATA
+        // Wait for canplay event
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout waiting for audio to load'))
+          }, 10000) // 10 second timeout
+
+          const canPlayHandler = () => {
+            clearTimeout(timeout)
+            audio.removeEventListener('canplay', canPlayHandler)
+            audio.removeEventListener('error', errorHandler)
+            resolve()
+          }
+
+          const errorHandler = (e) => {
+            clearTimeout(timeout)
+            audio.removeEventListener('canplay', canPlayHandler)
+            audio.removeEventListener('error', errorHandler)
+            reject(e)
+          }
+
+          if (audio.readyState >= 3) {
+            clearTimeout(timeout)
+            resolve()
+          } else {
+            audio.addEventListener('canplay', canPlayHandler, { once: true })
+            audio.addEventListener('error', errorHandler, { once: true })
+          }
+        })
+      }
+
+      // Attempt to play
+      const playPromise = audio.play()
+      playPromiseRef.current = playPromise
+      
+      await playPromise
+      setPlayError(null)
+      retryCountRef.current = 0
+      
+      // Track play when song actually starts
+      if (subscription || user?.role === 'admin') {
+        trackPlay(currentSong.id)
+      }
+    } catch (error) {
+      console.error('Play error:', error)
+      
+      // Retry if we haven't exceeded retry limit
+      if (retries > 0 && retryCountRef.current < 3) {
+        retryCountRef.current++
+        await new Promise(resolve => setTimeout(resolve, 500)) // Wait 500ms before retry
+        return attemptPlay(audio, retries - 1)
+      }
+      
+      setPlayError('Failed to play audio. Please try again.')
+      setIsPlaying(false)
+      throw error
+    } finally {
+      playPromiseRef.current = null
+      setIsLoading(false)
+    }
+  }
+
   // Only update audio src when song actually changes
   useEffect(() => {
     if (audioRef.current && currentSong && previousSongIdRef.current !== currentSong.id) {
+      const audio = audioRef.current
       const wasPlaying = isPlaying
       
-      // Update src programmatically to avoid reload
-      audioRef.current.src = `${API_URL}${currentSong.file_path}`
-      audioRef.current.load()
+      // Reset state
+      setIsLoading(true)
+      setPlayError(null)
+      retryCountRef.current = 0
       
-      // Restore play state if it was playing
-      if (wasPlaying) {
-        audioRef.current.play().catch(console.error)
-        // Track play when song actually starts
-        if (subscription || user?.role === 'admin') {
-          trackPlay(currentSong.id)
+      // Update src programmatically to avoid reload
+      audio.src = `${API_URL}${currentSong.file_path}`
+      audio.load()
+      
+      // Set up one-time listeners for this song change
+      const handleCanPlay = async () => {
+        if (wasPlaying) {
+          setIsLoading(true)
+          try {
+            await attemptPlay(audio)
+          } catch (error) {
+            console.error('Failed to start playback:', error)
+          }
+        } else {
+          setIsLoading(false)
         }
       }
+
+      const handleError = (e) => {
+        console.error('Audio loading error:', e)
+        setPlayError('Failed to load audio file')
+        setIsLoading(false)
+        setIsPlaying(false)
+      }
+
+      const handleLoadedMetadata = () => {
+        setDuration(audio.duration)
+      }
+
+      audio.addEventListener('canplay', handleCanPlay, { once: true })
+      audio.addEventListener('error', handleError, { once: true })
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
       
       previousSongIdRef.current = currentSong.id
+
+      return () => {
+        audio.removeEventListener('canplay', handleCanPlay)
+        audio.removeEventListener('error', handleError)
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      }
     }
   }, [currentSong?.id, isPlaying, subscription, user])
 
   // Handle play/pause for the same song
   useEffect(() => {
     if (audioRef.current && currentSong && previousSongIdRef.current === currentSong.id) {
+      const audio = audioRef.current
+      
       if (isPlaying) {
-        audioRef.current.play().catch(console.error)
-        // Track play when user clicks play
-        if (subscription || user?.role === 'admin') {
-          trackPlay(currentSong.id)
-        }
+        setIsLoading(true)
+        attemptPlay(audio).catch(error => {
+          console.error('Play failed:', error)
+        })
       } else {
-        audioRef.current.pause()
+        // Cancel any pending play promise
+        if (playPromiseRef.current) {
+          playPromiseRef.current.catch(() => {}) // Ignore cancellation errors
+        }
+        audio.pause()
+        setIsLoading(false)
       }
     }
   }, [isPlaying, currentSong?.id, subscription, user])
 
-  // Set up audio event listeners
+  // Handle interruption for free users
+  useEffect(() => {
+    if (!isFreeUser || !isPlaying || !currentSong) {
+      // Clear timer if user has subscription or not playing
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+        interruptionTimerRef.current = null
+      }
+      return
+    }
+
+    // Start interruption timer when playback starts
+    if (isPlaying && audioRef.current) {
+      interruptionTimerRef.current = setTimeout(() => {
+        // Pause the audio
+        if (audioRef.current) {
+          audioRef.current.pause()
+          setIsPlaying(false)
+        }
+        // Show interruption modal
+        setShowInterruptionModal(true)
+      }, 20000) // 20 seconds
+    }
+
+    return () => {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+        interruptionTimerRef.current = null
+      }
+    }
+  }, [isPlaying, currentSong, isFreeUser])
+
+  // Reset interruption timer when song changes
+  useEffect(() => {
+    if (interruptionTimerRef.current) {
+      clearTimeout(interruptionTimerRef.current)
+      interruptionTimerRef.current = null
+    }
+    setShowInterruptionModal(false)
+  }, [currentSong?.id])
+
+  // Set up persistent audio event listeners
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
     const updateTime = () => setCurrentTime(audio.currentTime)
-    const updateDuration = () => setDuration(audio.duration)
+    const updateDuration = () => {
+      if (audio.duration) {
+        setDuration(audio.duration)
+      }
+    }
     const handleEnded = () => {
       nextSong()
+    }
+    const handleWaiting = () => {
+      setIsLoading(true)
+    }
+    const handlePlaying = () => {
+      setIsLoading(false)
+      setPlayError(null)
+    }
+    const handleStalled = () => {
+      setIsLoading(true)
     }
 
     audio.addEventListener('timeupdate', updateTime)
     audio.addEventListener('loadedmetadata', updateDuration)
+    audio.addEventListener('durationchange', updateDuration)
     audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('waiting', handleWaiting)
+    audio.addEventListener('playing', handlePlaying)
+    audio.addEventListener('stalled', handleStalled)
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime)
       audio.removeEventListener('loadedmetadata', updateDuration)
+      audio.removeEventListener('durationchange', updateDuration)
       audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('waiting', handleWaiting)
+      audio.removeEventListener('playing', handlePlaying)
+      audio.removeEventListener('stalled', handleStalled)
     }
   }, [nextSong])
 
@@ -109,16 +284,40 @@ const MusicPlayer = () => {
     <audio
       ref={audioRef}
       crossOrigin="anonymous"
-      preload="metadata"
+      preload="auto"
       style={{ display: 'none' }}
     />
   )
+
+  const handleInterruptionClose = () => {
+    setShowInterruptionModal(false)
+    // User can continue with free version, but audio stays paused
+  }
+
+  const handleInterruptionUpgrade = () => {
+    setShowInterruptionModal(false)
+    // After upgrade, user can continue playing
+    if (audioRef.current) {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true)
+      }).catch(() => {
+        console.error('Failed to resume playback')
+      })
+    }
+  }
 
   // Minimized player view
   if (isMinimized) {
     return (
       <>
         {audioElement}
+        {showInterruptionModal && (
+          <UpgradeInterruptionModal
+            onClose={handleInterruptionClose}
+            onUpgrade={handleInterruptionUpgrade}
+            contentType="music"
+          />
+        )}
         <div
           onClick={() => setIsMinimized(false)}
           style={{
@@ -190,6 +389,7 @@ const MusicPlayer = () => {
                 e.stopPropagation()
                 setIsPlaying(!isPlaying)
               }}
+              disabled={isLoading}
               style={{
                 background: 'rgba(255,255,255,0.2)',
                 border: 'none',
@@ -197,21 +397,36 @@ const MusicPlayer = () => {
                 width: '36px',
                 height: '36px',
                 color: '#fff',
-                cursor: 'pointer',
+                cursor: isLoading ? 'wait' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '1rem',
-                transition: 'background 0.2s'
+                transition: 'background 0.2s',
+                opacity: isLoading ? 0.6 : 1
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
+                if (!isLoading) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
+                }
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
               }}
+              title={isLoading ? 'Loading...' : (isPlaying ? 'Pause' : 'Play')}
             >
-              {isPlaying ? <FiPause /> : <FiPlay />}
+              {isLoading ? (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTop: '2px solid #fff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+              ) : (
+                isPlaying ? <FiPause /> : <FiPlay />
+              )}
             </button>
             <button
               onClick={(e) => {
@@ -276,6 +491,13 @@ const MusicPlayer = () => {
   return (
     <>
       {audioElement}
+      {showInterruptionModal && (
+        <UpgradeInterruptionModal
+          onClose={handleInterruptionClose}
+          onUpgrade={handleInterruptionUpgrade}
+          contentType="music"
+        />
+      )}
       <div style={{
         position: 'fixed',
         bottom: 0,
@@ -412,6 +634,7 @@ const MusicPlayer = () => {
             </button>
             <button
               onClick={() => setIsPlaying(!isPlaying)}
+              disabled={isLoading}
               style={{
                 background: '#667eea',
                 border: 'none',
@@ -419,14 +642,26 @@ const MusicPlayer = () => {
                 width: isMobile ? '36px' : '40px',
                 height: isMobile ? '36px' : '40px',
                 color: '#fff',
-                cursor: 'pointer',
+                cursor: isLoading ? 'wait' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: isMobile ? '1rem' : '1.25rem'
+                fontSize: isMobile ? '1rem' : '1.25rem',
+                opacity: isLoading ? 0.6 : 1
               }}
             >
-              {isPlaying ? <FiPause /> : <FiPlay />}
+              {isLoading ? (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTop: '2px solid #fff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+              ) : (
+                isPlaying ? <FiPause /> : <FiPlay />
+              )}
             </button>
             <button
               onClick={nextSong}
@@ -468,6 +703,24 @@ const MusicPlayer = () => {
               whiteSpace: 'nowrap'
             }}>
               {currentSong.title} - {currentSong.artist}
+            </div>
+          )}
+          {playError && (
+            <div style={{
+              position: 'absolute',
+              top: '-2.5rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: '#ef4444',
+              color: '#fff',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              fontSize: '0.875rem',
+              whiteSpace: 'nowrap',
+              zIndex: 1001,
+              animation: 'fadeIn 0.3s ease-in'
+            }}>
+              {playError}
             </div>
           )}
         </div>

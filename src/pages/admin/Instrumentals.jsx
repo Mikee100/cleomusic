@@ -29,6 +29,7 @@ const Instrumentals = () => {
   const [musicFile, setMusicFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
   const [viewingReactions, setViewingReactions] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     fetchInstrumentals()
@@ -60,6 +61,7 @@ const Instrumentals = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault()
+    setIsUploading(true)
     const uploadData = new FormData()
     uploadData.append('title', formData.title)
     uploadData.append('artist', formData.artist)
@@ -80,6 +82,8 @@ const Instrumentals = () => {
       fetchInstrumentals()
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -273,6 +277,7 @@ const Instrumentals = () => {
           setCoverFile={setCoverFile}
           albums={albums}
           onSubmit={handleUpload}
+          isUploading={isUploading}
           onClose={() => {
             setShowUploadModal(false)
             setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
@@ -493,7 +498,7 @@ const Modal = ({ children }) => (
   </div>
 )
 
-const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, albums, onSubmit, onClose }) => (
+const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, albums, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
       <h2>Upload Instrumental</h2>
@@ -574,6 +579,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           type="file"
           accept="audio/*"
           onChange={(e) => setMusicFile(e.target.files[0])}
+          disabled={isUploading}
           required
           style={{
             width: '100%',
@@ -591,6 +597,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           type="file"
           accept="image/*"
           onChange={(e) => setCoverFile(e.target.files[0])}
+          disabled={isUploading}
           style={{
             width: '100%',
             padding: '0.75rem',
@@ -603,6 +610,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
       </div>
       <button
         type="submit"
+        disabled={isUploading}
         style={{
           width: '100%',
           padding: '0.75rem',
@@ -612,10 +620,29 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           color: '#fff',
           fontSize: '1rem',
           fontWeight: 'bold',
-          cursor: 'pointer'
+          cursor: isUploading ? 'wait' : 'pointer',
+          opacity: isUploading ? 0.6 : 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem'
         }}
       >
-        Upload
+        {isUploading ? (
+          <>
+            <div style={{
+              width: '16px',
+              height: '16px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderTop: '2px solid #fff',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            Uploading...
+          </>
+        ) : (
+          'Upload'
+        )}
       </button>
     </form>
   </Modal>

@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import SubscriptionModal from '../components/SubscriptionModal'
+import UpgradeInterruptionModal from '../components/UpgradeInterruptionModal'
 import Interactions from '../components/Interactions'
 import { 
-  FiVideo, FiX, FiHeart, FiMessageCircle, FiShare2, FiChevronUp, FiChevronDown, FiArrowLeft
+  FiVideo, FiX, FiHeart, FiMessageCircle, FiShare2, FiChevronUp, FiChevronDown, FiArrowLeft,
+  FiPlay, FiPause, FiVolume2, FiVolumeX
 } from 'react-icons/fi'
 import { useResponsive } from '../hooks/useResponsive'
 
@@ -24,11 +26,8 @@ const Videos = () => {
   const isScrolling = useRef(false)
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchVideos()
-    } else {
-      setLoading(false)
-    }
+    // Allow free users to access videos (they'll get interrupted after 20 seconds)
+    fetchVideos()
   }, [subscription, user])
 
   const fetchVideos = async () => {
@@ -137,32 +136,7 @@ const Videos = () => {
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [currentIndex, videos.length])
 
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <h1 style={{ marginBottom: '1rem', fontSize: '2rem' }}>Video Reels</h1>
-        <p style={{ marginBottom: '2rem', color: '#999' }}>Subscribe to access our video reels</p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
-  }
+  // Allow free users to access videos - they'll get interrupted after 20 seconds
 
   if (loading) {
     return (
@@ -244,11 +218,11 @@ const Videos = () => {
         ))}
       </div>
 
-      {/* Navigation indicators */}
+      {/* Navigation indicators - Moved to left side to avoid interference */}
       {!isMobile && videos.length > 1 && (
         <div style={{
           position: 'fixed',
-          right: '20px',
+          left: '20px',
           top: '50%',
           transform: 'translateY(-50%)',
           zIndex: 100,
@@ -270,7 +244,18 @@ const Videos = () => {
               alignItems: 'center',
               justifyContent: 'center',
               opacity: currentIndex === 0 ? 0.3 : 1,
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              if (currentIndex > 0) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
+                e.currentTarget.style.transform = 'scale(1.1)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = currentIndex === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)'
+              e.currentTarget.style.transform = 'scale(1)'
             }}
           >
             <FiChevronUp size={24} />
@@ -289,7 +274,18 @@ const Videos = () => {
               alignItems: 'center',
               justifyContent: 'center',
               opacity: currentIndex === videos.length - 1 ? 0.3 : 1,
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              if (currentIndex < videos.length - 1) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
+                e.currentTarget.style.transform = 'scale(1.1)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = currentIndex === videos.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)'
+              e.currentTarget.style.transform = 'scale(1)'
             }}
           >
             <FiChevronDown size={24} />
@@ -357,17 +353,104 @@ const Videos = () => {
 
 const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, canGoNext, canGoPrevious }) => {
   const { isMobile } = useResponsive()
+  const { user, subscription } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [commentCount, setCommentCount] = useState(0)
   const [showComments, setShowComments] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
+  const [showInterruptionModal, setShowInterruptionModal] = useState(false)
   const videoElementRef = useRef(null)
+  const interruptionTimerRef = useRef(null)
+  const isFreeUser = !subscription && user?.role !== 'admin'
 
   useEffect(() => {
     if (videoRef) {
       videoRef(videoElementRef.current)
     }
   }, [videoRef])
+
+  // Sync playing and mute state with video element
+  useEffect(() => {
+    const videoElement = videoElementRef.current
+    if (!videoElement) return
+
+    const handlePlay = () => setIsPlaying(true)
+    const handlePause = () => setIsPlaying(false)
+    const handleVolumeChange = () => {
+      setIsMuted(videoElement.muted)
+    }
+
+    videoElement.addEventListener('play', handlePlay)
+    videoElement.addEventListener('pause', handlePause)
+    videoElement.addEventListener('volumechange', handleVolumeChange)
+
+    // Initialize mute state
+    setIsMuted(videoElement.muted)
+
+    return () => {
+      videoElement.removeEventListener('play', handlePlay)
+      videoElement.removeEventListener('pause', handlePause)
+      videoElement.removeEventListener('volumechange', handleVolumeChange)
+    }
+  }, [])
+
+  // Update playing state when video becomes active/inactive
+  useEffect(() => {
+    const videoElement = videoElementRef.current
+    if (!videoElement) return
+
+    if (isActive) {
+      videoElement.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
+    } else {
+      videoElement.pause()
+      setIsPlaying(false)
+      // Clear interruption timer when video becomes inactive
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+        interruptionTimerRef.current = null
+      }
+      setShowInterruptionModal(false)
+    }
+  }, [isActive])
+
+  // Handle interruption for free users
+  useEffect(() => {
+    if (!isFreeUser || !isActive || !isPlaying) {
+      // Clear timer if user has subscription or not playing
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+        interruptionTimerRef.current = null
+      }
+      return
+    }
+
+    // Start interruption timer when video starts playing
+    if (isActive && isPlaying && videoElementRef.current) {
+      // Clear any existing timer
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+      }
+      
+      interruptionTimerRef.current = setTimeout(() => {
+        // Pause the video
+        if (videoElementRef.current) {
+          videoElementRef.current.pause()
+          setIsPlaying(false)
+        }
+        // Show interruption modal
+        setShowInterruptionModal(true)
+      }, 20000) // 20 seconds
+    }
+
+    return () => {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current)
+        interruptionTimerRef.current = null
+      }
+    }
+  }, [isActive, isPlaying, isFreeUser])
 
   useEffect(() => {
     // Fetch interaction counts
@@ -410,6 +493,42 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     }
   }
 
+  const handlePlayPause = (e) => {
+    e.stopPropagation()
+    if (videoElementRef.current) {
+      if (videoElementRef.current.paused) {
+        videoElementRef.current.play()
+      } else {
+        videoElementRef.current.pause()
+      }
+    }
+  }
+
+  const handleMuteToggle = (e) => {
+    e.stopPropagation()
+    if (videoElementRef.current) {
+      videoElementRef.current.muted = !videoElementRef.current.muted
+      setIsMuted(videoElementRef.current.muted)
+    }
+  }
+
+  const handleInterruptionClose = () => {
+    setShowInterruptionModal(false)
+    // User can continue with free version, but video stays paused
+  }
+
+  const handleInterruptionUpgrade = () => {
+    setShowInterruptionModal(false)
+    // After upgrade, user can continue playing
+    if (videoElementRef.current) {
+      videoElementRef.current.play().then(() => {
+        setIsPlaying(true)
+      }).catch(() => {
+        console.error('Failed to resume playback')
+      })
+    }
+  }
+
   return (
     <div
       style={{
@@ -428,7 +547,7 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
         ref={videoElementRef}
         src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
         loop
-        muted={false}
+        muted={isMuted}
         playsInline
         onClick={handleVideoClick}
         style={{
@@ -439,11 +558,85 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
         }}
       />
 
-      {/* Overlay UI - Right side actions */}
+      {/* Video Controls - Top Center */}
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        gap: '0.75rem',
+        zIndex: 15,
+        alignItems: 'center'
+      }}>
+        {/* Play/Pause Button */}
+        <button
+          onClick={handlePlayPause}
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            transition: 'all 0.2s',
+            backdropFilter: 'blur(10px)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+            e.currentTarget.style.transform = 'scale(1.1)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? <FiPause /> : <FiPlay />}
+        </button>
+
+        {/* Mute/Unmute Button */}
+        <button
+          onClick={handleMuteToggle}
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            transition: 'all 0.2s',
+            backdropFilter: 'blur(10px)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+            e.currentTarget.style.transform = 'scale(1.1)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? <FiVolumeX /> : <FiVolume2 />}
+        </button>
+      </div>
+
+      {/* Overlay UI - Right side actions (Better positioned to avoid scroll buttons) */}
       <div style={{
         position: 'absolute',
         right: isMobile ? '10px' : '20px',
-        bottom: '100px',
+        bottom: isMobile ? '80px' : '120px',
         display: 'flex',
         flexDirection: 'column',
         gap: '1.5rem',
@@ -566,49 +759,15 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
         </button>
       </div>
 
-      {/* Video info - Bottom left */}
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: isMobile ? '10px' : '20px',
-        right: isMobile ? '80px' : '100px',
-        zIndex: 10,
-        color: '#fff',
-        backdropFilter: 'blur(10px)',
-        background: 'rgba(0, 0, 0, 0.3)',
-        padding: '1rem',
-        borderRadius: '12px',
-        maxWidth: '500px'
-      }}>
-        <h3 style={{ 
-          margin: 0, 
-          marginBottom: '0.5rem',
-          fontSize: isMobile ? '1rem' : '1.25rem',
-          fontWeight: 'bold'
-        }}>
-          {video.title}
-        </h3>
-        {video.description && (
-          <p style={{ 
-            margin: 0, 
-            marginBottom: '0.5rem',
-            fontSize: isMobile ? '0.875rem' : '1rem',
-            color: 'rgba(255, 255, 255, 0.9)',
-            lineHeight: '1.4'
-          }}>
-            {video.description}
-          </p>
-        )}
-        {video.uploaded_by_name && (
-          <p style={{ 
-            margin: 0,
-            fontSize: '0.875rem',
-            color: 'rgba(255, 255, 255, 0.7)'
-          }}>
-            @{video.uploaded_by_name}
-          </p>
-        )}
-      </div>
+
+      {/* Interruption Modal */}
+      {showInterruptionModal && (
+        <UpgradeInterruptionModal
+          onClose={handleInterruptionClose}
+          onUpgrade={handleInterruptionUpgrade}
+          contentType="video"
+        />
+      )}
 
       {/* Comments panel */}
       {showComments && (

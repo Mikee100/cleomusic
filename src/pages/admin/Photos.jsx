@@ -22,6 +22,7 @@ const Photos = () => {
   })
   const [photoFile, setPhotoFile] = useState(null)
   const [viewingReactions, setViewingReactions] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     fetchPhotos()
@@ -43,6 +44,7 @@ const Photos = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault()
+    setIsUploading(true)
     const uploadData = new FormData()
     uploadData.append('title', formData.title)
     uploadData.append('description', formData.description || '')
@@ -58,6 +60,8 @@ const Photos = () => {
       fetchPhotos()
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -344,6 +348,7 @@ const Photos = () => {
           photoFile={photoFile}
           setPhotoFile={setPhotoFile}
           onSubmit={handleUpload}
+          isUploading={isUploading}
           onClose={() => {
             setShowUploadModal(false)
             setFormData({ title: '', description: '' })
@@ -545,7 +550,7 @@ const Modal = ({ children }) => (
   </div>
 )
 
-const UploadModal = ({ formData, setFormData, photoFile, setPhotoFile, onSubmit, onClose }) => (
+const UploadModal = ({ formData, setFormData, photoFile, setPhotoFile, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
       <h2>Upload Photo</h2>
@@ -594,6 +599,7 @@ const UploadModal = ({ formData, setFormData, photoFile, setPhotoFile, onSubmit,
           type="file"
           accept="image/*"
           onChange={(e) => setPhotoFile(e.target.files[0])}
+          disabled={isUploading}
           required
           style={{
             width: '100%',
@@ -608,6 +614,7 @@ const UploadModal = ({ formData, setFormData, photoFile, setPhotoFile, onSubmit,
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button
           type="submit"
+          disabled={isUploading}
           style={{
             flex: 1,
             padding: '0.75rem',
@@ -617,21 +624,42 @@ const UploadModal = ({ formData, setFormData, photoFile, setPhotoFile, onSubmit,
             color: '#fff',
             fontSize: '1rem',
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: isUploading ? 'wait' : 'pointer',
+            opacity: isUploading ? 0.6 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem'
           }}
         >
-          Upload
+          {isUploading ? (
+            <>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid #fff',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              Uploading...
+            </>
+          ) : (
+            'Upload'
+          )}
         </button>
         <button
           type="button"
           onClick={onClose}
+          disabled={isUploading}
           style={{
             padding: '0.75rem 1.5rem',
             background: 'transparent',
             border: '1px solid #333',
             borderRadius: '8px',
             color: '#fff',
-            cursor: 'pointer'
+            cursor: isUploading ? 'not-allowed' : 'pointer',
+            opacity: isUploading ? 0.5 : 1
           }}
         >
           Cancel

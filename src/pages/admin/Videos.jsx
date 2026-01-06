@@ -25,6 +25,7 @@ const Videos = () => {
   const [playingVideo, setPlayingVideo] = useState(null)
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(false)
   const [viewingReactions, setViewingReactions] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     fetchVideos()
@@ -46,6 +47,7 @@ const Videos = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault()
+    setIsUploading(true)
     const uploadData = new FormData()
     uploadData.append('title', formData.title)
     uploadData.append('description', formData.description || '')
@@ -61,6 +63,8 @@ const Videos = () => {
       fetchVideos()
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -364,6 +368,7 @@ const Videos = () => {
           videoFile={videoFile}
           setVideoFile={setVideoFile}
           onSubmit={handleUpload}
+          isUploading={isUploading}
           onClose={() => {
             setShowUploadModal(false)
             setFormData({ title: '', description: '' })
@@ -672,7 +677,7 @@ const Modal = ({ children }) => (
   </div>
 )
 
-const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit, onClose }) => (
+const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
       <h2>Upload Video</h2>
@@ -721,6 +726,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
           type="file"
           accept="video/*"
           onChange={(e) => setVideoFile(e.target.files[0])}
+          disabled={isUploading}
           required
           style={{
             width: '100%',
@@ -738,6 +744,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button
           type="submit"
+          disabled={isUploading}
           style={{
             flex: 1,
             padding: '0.75rem',
@@ -747,21 +754,42 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
             color: '#fff',
             fontSize: '1rem',
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: isUploading ? 'wait' : 'pointer',
+            opacity: isUploading ? 0.6 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem'
           }}
         >
-          Upload
+          {isUploading ? (
+            <>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid #fff',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              Uploading...
+            </>
+          ) : (
+            'Upload'
+          )}
         </button>
         <button
           type="button"
           onClick={onClose}
+          disabled={isUploading}
           style={{
             padding: '0.75rem 1.5rem',
             background: 'transparent',
             border: '1px solid #333',
             borderRadius: '8px',
             color: '#fff',
-            cursor: 'pointer'
+            cursor: isUploading ? 'not-allowed' : 'pointer',
+            opacity: isUploading ? 0.5 : 1
           }}
         >
           Cancel

@@ -16,11 +16,8 @@ const RecentlyPlayed = () => {
   const [favorites, setFavorites] = useState(new Set())
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchSongs()
-    } else {
-      setLoading(false)
-    }
+    // Allow free users to access recently played songs (they'll get interrupted after 20 seconds when playing)
+    fetchSongs()
   }, [subscription, user])
 
   const fetchSongs = async () => {
@@ -71,38 +68,8 @@ const RecentlyPlayed = () => {
   }
 
   const handlePlaySong = (song) => {
-    if (!subscription && user?.role !== 'admin') {
-      setShowSubscriptionModal(true)
-      return
-    }
+    // Allow free users to play songs (they'll get interrupted after 20 seconds)
     playSong(song, songs)
-  }
-
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <h1 style={{ marginBottom: '1rem', fontSize: '2rem' }}>Recently Played</h1>
-        <p style={{ marginBottom: '2rem', color: '#999' }}>Subscribe to access premium music</p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
   }
 
   return (

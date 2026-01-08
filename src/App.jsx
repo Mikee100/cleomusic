@@ -1,9 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { PlayerProvider } from './context/PlayerContext'
+import { DownloadsProvider } from './context/DownloadsContext'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Home from './pages/Home'
+import Profile from './pages/Profile'
 import Popular from './pages/Popular'
 import RecentlyPlayed from './pages/RecentlyPlayed'
 import Favorites from './pages/Favorites'
@@ -24,6 +26,9 @@ import Instrumentals from './pages/Instrumentals'
 import AdminInstrumentals from './pages/admin/Instrumentals'
 import Playlists from './pages/Playlists'
 import PlaylistDetail from './pages/PlaylistDetail'
+import Upcoming from './pages/admin/Upcoming'
+import SongPlayer from './pages/SongPlayer'
+import Downloads from './pages/Downloads'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import Layout from './components/Layout'
@@ -32,8 +37,9 @@ function App() {
   return (
     <AuthProvider>
       <PlayerProvider>
-        <Router>
-          <Routes>
+        <DownloadsProvider>
+          <Router>
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route
@@ -42,6 +48,16 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Home />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Profile />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -122,6 +138,24 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <PlaylistDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/song/:id"
+              element={
+                <ProtectedRoute>
+                  <SongPlayer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/downloads"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Downloads />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -246,9 +280,20 @@ function App() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/admin/upcoming"
+              element={
+                <AdminRoute>
+                  <Layout>
+                    <Upcoming />
+                  </Layout>
+                </AdminRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>
+        </DownloadsProvider>
       </PlayerProvider>
     </AuthProvider>
   )

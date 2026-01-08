@@ -28,6 +28,7 @@ const Songs = () => {
   })
   const [musicFile, setMusicFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
+  const [backgroundVideoFile, setBackgroundVideoFile] = useState(null)
   const [viewingReactions, setViewingReactions] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
 
@@ -70,6 +71,7 @@ const Songs = () => {
     if (formData.album_id) uploadData.append('album_id', formData.album_id)
     if (musicFile) uploadData.append('musicFile', musicFile)
     if (coverFile) uploadData.append('coverImage', coverFile)
+    if (backgroundVideoFile) uploadData.append('backgroundVideo', backgroundVideoFile)
 
     try {
       await axios.post('/api/admin/songs', uploadData, {
@@ -79,6 +81,7 @@ const Songs = () => {
       setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
       setMusicFile(null)
       setCoverFile(null)
+      setBackgroundVideoFile(null)
       fetchSongs()
     } catch (err) {
       alert(err.response?.data?.error || 'Upload failed')
@@ -375,6 +378,8 @@ const Songs = () => {
           setMusicFile={setMusicFile}
           coverFile={coverFile}
           setCoverFile={setCoverFile}
+          backgroundVideoFile={backgroundVideoFile}
+          setBackgroundVideoFile={setBackgroundVideoFile}
           albums={albums}
           onSubmit={handleUpload}
           isUploading={isUploading}
@@ -383,6 +388,7 @@ const Songs = () => {
             setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
             setMusicFile(null)
             setCoverFile(null)
+            setBackgroundVideoFile(null)
           }}
         />
       )}
@@ -396,18 +402,36 @@ const Songs = () => {
           onSubmit={async (e) => {
             e.preventDefault()
             try {
-              await axios.put(`/api/admin/songs/${editingSong.id}`, formData)
+              const updateData = new FormData()
+              updateData.append('title', formData.title)
+              updateData.append('artist', formData.artist)
+              updateData.append('genre', formData.genre || '')
+              if (formData.album_id) updateData.append('album_id', formData.album_id)
+              if (coverFile) updateData.append('coverImage', coverFile)
+              if (backgroundVideoFile) updateData.append('backgroundVideo', backgroundVideoFile)
+
+              await axios.put(`/api/admin/songs/${editingSong.id}`, updateData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              })
               setEditingSong(null)
               setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
+              setCoverFile(null)
+              setBackgroundVideoFile(null)
               fetchSongs()
             } catch (err) {
-              alert('Update failed')
+              alert(err.response?.data?.error || 'Update failed')
             }
           }}
           onClose={() => {
             setEditingSong(null)
             setFormData({ title: '', artist: '', album: '', genre: '', album_id: '' })
+            setCoverFile(null)
+            setBackgroundVideoFile(null)
           }}
+          coverFile={coverFile}
+          setCoverFile={setCoverFile}
+          backgroundVideoFile={backgroundVideoFile}
+          setBackgroundVideoFile={setBackgroundVideoFile}
         />
       )}
 
@@ -597,7 +621,7 @@ const Modal = ({ children }) => (
   </div>
 )
 
-const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, albums, onSubmit, onClose, isUploading }) => (
+const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile, setCoverFile, backgroundVideoFile, setBackgroundVideoFile, albums, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
       <h2>Upload Song</h2>
@@ -711,7 +735,7 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
           }}
         />
       </div>
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '1rem' }}>
         <label style={{ display: 'block', marginBottom: '0.5rem' }}>Cover Image</label>
         <input
           type="file"
@@ -727,6 +751,26 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
             color: '#fff'
           }}
         />
+      </div>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Background Video (Optional)</label>
+        <input
+          type="file"
+          accept="video/*"
+          onChange={(e) => setBackgroundVideoFile(e.target.files[0])}
+          disabled={isUploading}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: '#2a2a2a',
+            border: '1px solid #333',
+            borderRadius: '8px',
+            color: '#fff'
+          }}
+        />
+        <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#999' }}>
+          Optional: Upload a video to play in the background while the song plays (like Spotify)
+        </p>
       </div>
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button
@@ -786,121 +830,222 @@ const UploadModal = ({ formData, setFormData, musicFile, setMusicFile, coverFile
   </Modal>
 )
 
-const EditModal = ({ song, formData, setFormData, albums, onSubmit, onClose }) => (
-  <Modal>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-      <h2>Edit Song</h2>
-      <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.5rem' }}>
-        <FiX />
-      </button>
-    </div>
-    <form onSubmit={onSubmit}>
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Title</label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: '#2a2a2a',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            color: '#fff'
-          }}
-        />
-      </div>
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Artist</label>
-        <input
-          type="text"
-          value={formData.artist}
-          onChange={(e) => setFormData({ ...formData, artist: e.target.value })}
-          required
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: '#2a2a2a',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            color: '#fff'
-          }}
-        />
-      </div>
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Album</label>
-        <select
-          value={formData.album_id || ''}
-          onChange={(e) => setFormData({ ...formData, album_id: e.target.value, album: '' })}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: '#2a2a2a',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            color: '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          <option value="">No album</option>
-          {albums.map(album => (
-            <option key={album.id} value={album.id}>{album.name} - {album.artist}</option>
-          ))}
-        </select>
-      </div>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Genre</label>
-        <input
-          type="text"
-          value={formData.genre}
-          onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: '#2a2a2a',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            color: '#fff'
-          }}
-        />
-      </div>
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button
-          type="submit"
-          style={{
-            flex: 1,
-            padding: '0.75rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          Update
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            padding: '0.75rem 1.5rem',
-            background: 'transparent',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            color: '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          Cancel
+const EditModal = ({ song, formData, setFormData, albums, onSubmit, onClose, coverFile, setCoverFile, backgroundVideoFile, setBackgroundVideoFile }) => {
+  const [coverPreview, setCoverPreview] = useState(song?.cover_image_path ? `${import.meta.env.VITE_API_URL || ''}${song.cover_image_path}` : null)
+  const [videoPreview, setVideoPreview] = useState(song?.background_video_path ? `${import.meta.env.VITE_API_URL || ''}${song.background_video_path}` : null)
+
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setCoverFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setCoverPreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleVideoChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setBackgroundVideoFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setVideoPreview(URL.createObjectURL(file))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  return (
+    <Modal>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h2>Edit Song</h2>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.5rem' }}>
+          <FiX />
         </button>
       </div>
-    </form>
-  </Modal>
-)
+      <form onSubmit={onSubmit}>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Title *</label>
+          <input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            required
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff'
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Artist *</label>
+          <input
+            type="text"
+            value={formData.artist}
+            onChange={(e) => setFormData({ ...formData, artist: e.target.value })}
+            required
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff'
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Album</label>
+          <select
+            value={formData.album_id || ''}
+            onChange={(e) => setFormData({ ...formData, album_id: e.target.value, album: '' })}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="">No album</option>
+            {albums.map(album => (
+              <option key={album.id} value={album.id}>{album.name} - {album.artist}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Genre</label>
+          <input
+            type="text"
+            value={formData.genre || ''}
+            onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff'
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Cover Image</label>
+          {coverPreview && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <img
+                src={coverPreview}
+                alt="Cover preview"
+                style={{
+                  width: '100%',
+                  maxWidth: '200px',
+                  height: '200px',
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  border: '1px solid #333'
+                }}
+              />
+            </div>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleCoverChange}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          />
+          <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#999' }}>
+            Leave empty to keep current cover image
+          </p>
+        </div>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Background Video (Optional)</label>
+          {videoPreview && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <video
+                src={videoPreview}
+                style={{
+                  width: '100%',
+                  maxWidth: '300px',
+                  maxHeight: '200px',
+                  borderRadius: '8px',
+                  border: '1px solid #333'
+                }}
+                controls
+                muted
+              />
+            </div>
+          )}
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleVideoChange}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#2a2a2a',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          />
+          <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#999' }}>
+            Optional: Upload a video to play in the background while the song plays. Leave empty to keep current video or remove if none exists.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            type="submit"
+            style={{
+              flex: 1,
+              padding: '0.75rem',
+              background: '#667eea',
+              border: 'none',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Update
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'transparent',
+              border: '1px solid #333',
+              borderRadius: '8px',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
 
 export default Songs
 

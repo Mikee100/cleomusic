@@ -4,11 +4,30 @@ import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import { useResponsive } from '../hooks/useResponsive'
 import { API_URL } from '../utils/api.js'
-import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX, FiLoader } from 'react-icons/fi'
+import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX, FiLoader, FiShuffle, FiRepeat, FiList, FiDownload } from 'react-icons/fi'
+import { useDownloads } from '../context/DownloadsContext'
 import UpgradeInterruptionModal from './UpgradeInterruptionModal'
 
 const MusicPlayer = () => {
-  const { currentSong, isPlaying, setIsPlaying, nextSong, previousSong, isMinimized, setIsMinimized, clearPlayer } = usePlayer()
+  const {
+    currentSong,
+    isPlaying,
+    setIsPlaying,
+    nextSong,
+    previousSong,
+    isMinimized,
+    setIsMinimized,
+    clearPlayer,
+    isShuffle,
+    setIsShuffle,
+    repeatMode,
+    setRepeatMode,
+    playlist,
+    currentIndex,
+    reorderQueue,
+    playFromQueue
+  } = usePlayer()
+  const { addDownload, downloads } = useDownloads()
   const { user, subscription } = useAuth()
   const { isMobile } = useResponsive()
   const audioRef = useRef(null)
@@ -17,11 +36,12 @@ const MusicPlayer = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [playError, setPlayError] = useState(null)
   const [showInterruptionModal, setShowInterruptionModal] = useState(false)
+  const [showQueue, setShowQueue] = useState(false)
   const previousSongIdRef = useRef(null)
   const playTrackedRef = useRef(new Set())
   const playPromiseRef = useRef(null)
   const retryCountRef = useRef(0)
-  const interruptionTimerRef = useRef(null)
+  const hasInterruptedRef = useRef(false)
   const isFreeUser = !subscription && user?.role !== 'admin'
 
   // Track play when song starts playing
@@ -177,60 +197,46 @@ const MusicPlayer = () => {
     }
   }, [isPlaying, currentSong?.id, subscription, user])
 
-  // Handle interruption for free users
-  useEffect(() => {
-    if (!isFreeUser || !isPlaying || !currentSong) {
-      // Clear timer if user has subscription or not playing
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-        interruptionTimerRef.current = null
-      }
-      return
-    }
-
-    // Start interruption timer when playback starts
-    if (isPlaying && audioRef.current) {
-      interruptionTimerRef.current = setTimeout(() => {
-        // Pause the audio
-        if (audioRef.current) {
-          audioRef.current.pause()
-          setIsPlaying(false)
-        }
-        // Show interruption modal
-        setShowInterruptionModal(true)
-      }, 20000) // 20 seconds
-    }
-
-    return () => {
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-        interruptionTimerRef.current = null
-      }
-    }
-  }, [isPlaying, currentSong, isFreeUser])
-
-  // Reset interruption timer when song changes
-  useEffect(() => {
-    if (interruptionTimerRef.current) {
-      clearTimeout(interruptionTimerRef.current)
-      interruptionTimerRef.current = null
-    }
-    setShowInterruptionModal(false)
-  }, [currentSong?.id])
-
   // Set up persistent audio event listeners
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
-    const updateTime = () => setCurrentTime(audio.currentTime)
+    const updateTime = () => {
+      const time = audio.currentTime
+      setCurrentTime(time)
+
+      // For free users, interrupt at 25% of the track duration
+      if (
+        isFreeUser &&
+        !hasInterruptedRef.current &&
+        duration > 0 &&
+        time >= duration * 0.25
+      ) {
+        if (audioRef.current) {
+          audioRef.current.pause()
+        }
+        setIsPlaying(false)
+        setShowInterruptionModal(true)
+        hasInterruptedRef.current = true
+      }
+    }
     const updateDuration = () => {
       if (audio.duration) {
         setDuration(audio.duration)
       }
     }
     const handleEnded = () => {
-      nextSong()
+      if (repeatMode === 'one') {
+        // Restart the same song
+        audio.currentTime = 0
+        setIsPlaying(true)
+        attemptPlay(audio).catch(error => {
+          console.error('Repeat one play failed:', error)
+        })
+      } else {
+        nextSong()
+      }
     }
     const handleWaiting = () => {
       setIsLoading(true)
@@ -260,7 +266,13 @@ const MusicPlayer = () => {
       audio.removeEventListener('playing', handlePlaying)
       audio.removeEventListener('stalled', handleStalled)
     }
-  }, [nextSong])
+  }, [nextSong, isFreeUser, duration, repeatMode])
+
+  // Reset interruption state when song changes or user gains subscription
+  useEffect(() => {
+    hasInterruptedRef.current = false
+    setShowInterruptionModal(false)
+  }, [currentSong?.id, isFreeUser])
 
   if (!currentSong) return null
 
@@ -291,7 +303,9 @@ const MusicPlayer = () => {
 
   const handleInterruptionClose = () => {
     setShowInterruptionModal(false)
-    // User can continue with free version, but audio stays paused
+    // Always move to the next song when the interruption popup is dismissed
+    hasInterruptedRef.current = false
+    nextSong()
   }
 
   const handleInterruptionUpgrade = () => {
@@ -304,6 +318,30 @@ const MusicPlayer = () => {
         console.error('Failed to resume playback')
       })
     }
+  }
+
+  const handlePlayToggle = () => {
+    // Free users cannot resume a song once the preview limit has been reached
+    if (isFreeUser && hasInterruptedRef.current) {
+      return
+    }
+    setIsPlaying(!isPlaying)
+  }
+
+  const isDownloaded = downloads?.some(
+    (d) => d.type === 'song' && d.id === currentSong.id
+  )
+
+  const handleDownload = () => {
+    if (!currentSong) return
+    addDownload({
+      type: 'song',
+      id: currentSong.id,
+      title: currentSong.title,
+      artist: currentSong.artist,
+      cover_image_path: currentSong.cover_image_path,
+      file_path: currentSong.file_path
+    })
   }
 
   // Minimized player view
@@ -387,7 +425,7 @@ const MusicPlayer = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                setIsPlaying(!isPlaying)
+                handlePlayToggle()
               }}
               disabled={isLoading}
               style={{
@@ -491,6 +529,15 @@ const MusicPlayer = () => {
   return (
     <>
       {audioElement}
+      {showQueue && (
+        <QueuePanel
+          playlist={playlist}
+          currentIndex={currentIndex}
+          onReorder={reorderQueue}
+          onPlayIndex={playFromQueue}
+          isMobile={isMobile}
+        />
+      )}
       {showInterruptionModal && (
         <UpgradeInterruptionModal
           onClose={handleInterruptionClose}
@@ -529,6 +576,49 @@ const MusicPlayer = () => {
             alignSelf: isMobile ? 'flex-end' : 'auto',
             marginBottom: isMobile ? '0.5rem' : '0'
           }}>
+            <button
+              onClick={() => setShowQueue(!showQueue)}
+              style={{
+                background: '#2a2a2a',
+                border: '1px solid #333',
+                borderRadius: '6px',
+                padding: '0.25rem 0.5rem',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                transition: 'background 0.2s',
+                opacity: showQueue ? 1 : 0.9
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#2a2a2a'}
+              title="Show queue"
+            >
+              <FiList /> Queue
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isDownloaded}
+              style={{
+                background: '#2a2a2a',
+                border: '1px solid #333',
+                borderRadius: '6px',
+                padding: '0.25rem 0.5rem',
+                color: isDownloaded ? '#22c55e' : '#fff',
+                cursor: isDownloaded ? 'default' : 'pointer',
+                fontSize: '0.875rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                transition: 'background 0.2s',
+                opacity: isDownloaded ? 0.8 : 0.95
+              }}
+              title={isDownloaded ? 'Already in downloads' : 'Save for offline in-app listening'}
+            >
+              <FiDownload /> {(!isMobile || isDownloaded) && (isDownloaded ? 'Saved' : 'Download')}
+            </button>
             <button
               onClick={() => setIsMinimized(true)}
               style={{
@@ -612,10 +702,30 @@ const MusicPlayer = () => {
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            gap: isMobile ? '0.25rem' : '0.5rem', 
+            gap: isMobile ? '0.25rem' : '0.75rem', 
             flex: isMobile ? 'none' : 1,
             justifyContent: isMobile ? 'center' : 'flex-start'
           }}>
+            {/* Shuffle */}
+            <button
+              onClick={() => setIsShuffle(!isShuffle)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: isShuffle ? '#10b981' : '#fff',
+                cursor: 'pointer',
+                padding: isMobile ? '0.25rem' : '0.5rem',
+                fontSize: isMobile ? '0.9rem' : '1rem',
+                opacity: isShuffle ? 1 : 0.7,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title={isShuffle ? 'Shuffle on' : 'Shuffle off'}
+            >
+              <FiShuffle />
+            </button>
+
             <button
               onClick={previousSong}
               style={{
@@ -633,7 +743,7 @@ const MusicPlayer = () => {
               <FiSkipBack />
             </button>
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={handlePlayToggle}
               disabled={isLoading}
               style={{
                 background: '#667eea',
@@ -678,6 +788,72 @@ const MusicPlayer = () => {
               }}
             >
               <FiSkipForward />
+            </button>
+
+            {/* Repeat all */}
+            <button
+              onClick={() => {
+                // Toggle repeat all; make sure repeat one is off
+                if (repeatMode === 'all') {
+                  setRepeatMode('off')
+                } else {
+                  setRepeatMode('all')
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: repeatMode === 'all' ? '#fbbf24' : '#fff',
+                cursor: 'pointer',
+                padding: isMobile ? '0.25rem' : '0.5rem',
+                fontSize: isMobile ? '0.9rem' : '1rem',
+                opacity: repeatMode === 'all' ? 1 : 0.7,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: isMobile ? '24px' : '28px'
+              }}
+              title="Repeat all"
+            >
+              <FiRepeat />
+            </button>
+
+            {/* Repeat one */}
+            <button
+              onClick={() => {
+                // Toggle repeat one; make sure repeat all is off
+                if (repeatMode === 'one') {
+                  setRepeatMode('off')
+                } else {
+                  setRepeatMode('one')
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: repeatMode === 'one' ? '#fbbf24' : '#fff',
+                cursor: 'pointer',
+                padding: isMobile ? '0.25rem' : '0.5rem',
+                fontSize: isMobile ? '0.9rem' : '1rem',
+                opacity: repeatMode === 'one' ? 1 : 0.7,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                minWidth: isMobile ? '24px' : '28px'
+              }}
+              title="Repeat one"
+            >
+              <FiRepeat />
+              <span style={{
+                position: 'absolute',
+                right: isMobile ? '2px' : '3px',
+                bottom: isMobile ? '2px' : '3px',
+                fontSize: '0.6rem',
+                fontWeight: 'bold'
+              }}>
+                1
+              </span>
             </button>
           </div>
           <div style={{ 
@@ -750,3 +926,144 @@ const MusicPlayer = () => {
 }
 
 export default MusicPlayer
+
+const QueuePanel = ({ playlist, currentIndex, onReorder, onPlayIndex, isMobile }) => {
+  const [dragIndex, setDragIndex] = useState(null)
+
+  if (!playlist || playlist.length === 0) return null
+
+  const handleDragStart = (index) => {
+    setDragIndex(index)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (index) => {
+    if (dragIndex == null) return
+    onReorder(dragIndex, index)
+    setDragIndex(null)
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        right: isMobile ? '0.5rem' : '1.5rem',
+        bottom: isMobile ? '4.5rem' : '5.5rem',
+        width: isMobile ? '85%' : '320px',
+        maxHeight: isMobile ? '40vh' : '50vh',
+        background: '#111827',
+        borderRadius: '12px',
+        border: '1px solid #374151',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+        overflow: 'hidden',
+        zIndex: 1100
+      }}
+    >
+      <div
+        style={{
+          padding: '0.75rem 1rem',
+          borderBottom: '1px solid #374151',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}
+      >
+        <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>Up Next</span>
+        <span style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>{playlist.length} tracks</span>
+      </div>
+      <div
+        style={{
+          maxHeight: isMobile ? '32vh' : '42vh',
+          overflowY: 'auto'
+        }}
+      >
+        {playlist.map((song, index) => {
+          const isCurrent = index === currentIndex
+          return (
+            <div
+              key={song.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(index)}
+              onClick={() => onPlayIndex(index)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'grab',
+                background: isCurrent ? '#1F2937' : 'transparent',
+                borderBottom: '1px solid #111827'
+              }}
+            >
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '6px',
+                  background: song.cover_image_path
+                    ? `url(${API_URL}${song.cover_image_path})`
+                    : '#111827',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  color: '#6B7280',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {!song.cover_image_path && <FiMusic />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: isCurrent ? 600 : 500,
+                    color: '#F9FAFB',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {song.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: '#9CA3AF',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {song.artist}
+                </div>
+              </div>
+              <div
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '4px',
+                  border: '1px solid #4B5563',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.6rem',
+                  color: '#6B7280'
+                }}
+              >
+                ::
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

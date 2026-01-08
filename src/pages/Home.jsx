@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
@@ -8,19 +8,21 @@ import HeroSection from '../components/HeroSection'
 import AlbumsSection from '../components/AlbumsSection'
 import SongsSection from '../components/SongsSection'
 import InstrumentalsSection from '../components/InstrumentalsSection'
-import { FiMusic, FiHeart, FiPlay, FiList, FiTrendingUp } from 'react-icons/fi'
+import { FiMusic, FiHeart, FiPlay, FiList, FiTrendingUp, FiCalendar, FiDisc } from 'react-icons/fi'
 import { useResponsive } from '../hooks/useResponsive'
 
 const Home = () => {
   const { user, subscription } = useAuth()
   const { playSong } = usePlayer()
   const { isMobile } = useResponsive()
+  const navigate = useNavigate()
   const [songs, setSongs] = useState([])
   const [albums, setAlbums] = useState([])
   const [userStats, setUserStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [favorites, setFavorites] = useState(new Set())
+  const [upcoming, setUpcoming] = useState([])
 
   // Placeholder artist info
   const artistInfo = {
@@ -37,15 +39,17 @@ const Home = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [songsResponse, albumsResponse, userStatsResponse] = await Promise.all([
+      const [songsResponse, albumsResponse, userStatsResponse, upcomingResponse] = await Promise.all([
         axios.get('/api/songs', { params: { limit: 12 } }).catch(() => ({ data: { songs: [] } })),
         axios.get('/api/albums', { params: { limit: 12 } }).catch(() => ({ data: { albums: [] } })),
-        axios.get('/api/users/stats').catch(() => ({ data: null }))
+        axios.get('/api/users/stats').catch(() => ({ data: null })),
+        axios.get('/api/upcoming').catch(() => ({ data: { upcoming: [] } }))
       ])
 
       setSongs(songsResponse.data.songs || [])
       setAlbums(albumsResponse.data.albums || [])
       setUserStats(userStatsResponse.data)
+      setUpcoming(upcomingResponse.data.upcoming || [])
 
       // Check favorites
       if (songsResponse.data.songs?.length > 0) {
@@ -81,13 +85,138 @@ const Home = () => {
   }
 
   const handlePlaySong = (song) => {
-    // Allow free users to play songs (they'll get interrupted after 20 seconds)
-    playSong(song, songs)
+    // Navigate to full-screen song player with video background
+    navigate(`/song/${song.id}`)
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
       <HeroSection artistInfo={artistInfo} />
+      
+      {/* Upcoming Releases Section */}
+      {upcoming.length > 0 && (
+        <section style={{
+          padding: isMobile ? '2rem 1rem' : '3rem 2rem',
+          background: '#0a0a0a'
+        }}>
+          <h2 style={{
+            fontSize: isMobile ? '1.5rem' : '1.75rem',
+            fontWeight: '600',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <FiCalendar /> Coming Soon
+          </h2>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile 
+              ? 'repeat(auto-fill, minmax(150px, 1fr))' 
+              : 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: isMobile ? '1rem' : '1.5rem'
+          }}>
+            {upcoming.slice(0, 6).map(item => (
+              <div
+                key={item.id}
+                style={{
+                  background: '#1a1a1a',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '1px solid #333',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)'
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(102, 126, 234, 0.2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                <div style={{
+                  width: '100%',
+                  aspectRatio: '1',
+                  background: item.cover_image_path 
+                    ? `url(${import.meta.env.VITE_API_URL || ''}${item.cover_image_path})` 
+                    : '#2a2a2a',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative'
+                }}>
+                  {!item.cover_image_path && (
+                    <div style={{ fontSize: '3rem', color: '#666' }}>
+                      {item.type === 'song' ? <FiMusic /> : <FiDisc />}
+                    </div>
+                  )}
+                  <div style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    background: 'rgba(0,0,0,0.7)',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}>
+                    {item.type === 'song' ? <FiMusic size={12} /> : <FiDisc size={12} />}
+                    <span style={{ textTransform: 'capitalize' }}>{item.type}</span>
+                  </div>
+                </div>
+                <div style={{ padding: '1rem' }}>
+                  <h3 style={{ 
+                    margin: 0, 
+                    marginBottom: '0.25rem', 
+                    fontSize: '0.95rem',
+                    fontWeight: 'bold',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {item.title || item.name}
+                  </h3>
+                  <p style={{ 
+                    margin: 0, 
+                    marginBottom: '0.5rem',
+                    color: '#999', 
+                    fontSize: '0.875rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {item.artist}
+                  </p>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: '#667eea',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}>
+                    <FiCalendar size={12} />
+                    {formatDate(item.release_date)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       
       {/* User Stats Section */}
       {userStats && (

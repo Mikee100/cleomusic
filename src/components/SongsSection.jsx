@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FiPlay, FiMusic, FiHeart, FiList } from 'react-icons/fi'
 import Interactions from './Interactions'
 import AddToPlaylistModal from './AddToPlaylistModal'
@@ -6,6 +7,7 @@ import { useResponsive } from '../hooks/useResponsive'
 
 const SongsSection = ({ songs, favorites, loading, onPlaySong, onToggleFavorite }) => {
   const { isMobile } = useResponsive()
+  const navigate = useNavigate()
   const [addToPlaylistSongId, setAddToPlaylistSongId] = useState(null)
   
   return (
@@ -45,7 +47,7 @@ const SongsSection = ({ songs, favorites, loading, onPlaySong, onToggleFavorite 
                 border: '1px solid #333',
                 position: 'relative'
               }}
-              onClick={() => onPlaySong(song)}
+              onClick={() => navigate(`/song/${song.id}`)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)'
                 e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)'

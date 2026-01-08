@@ -1,27 +1,21 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
-import SubscriptionModal from '../components/SubscriptionModal'
 import Interactions from '../components/Interactions'
 import { useResponsive } from '../hooks/useResponsive'
 import { FiImage, FiSearch, FiX, FiMaximize2 } from 'react-icons/fi'
 
 const Photos = () => {
-  const { user, subscription } = useAuth()
+  const { user } = useAuth()
   const { isMobile } = useResponsive()
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
   useEffect(() => {
-    if (subscription || user?.role === 'admin') {
-      fetchPhotos()
-    } else {
-      setLoading(false)
-    }
-  }, [subscription, user, searchTerm])
+    fetchPhotos()
+  }, [user, searchTerm])
 
   const fetchPhotos = async () => {
     try {
@@ -35,33 +29,6 @@ const Photos = () => {
     } finally {
       setLoading(false)
     }
-  }
-
-  if (!subscription && user?.role !== 'admin') {
-    return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <h1 style={{ marginBottom: '1rem', fontSize: '2rem' }}>Photos Gallery</h1>
-        <p style={{ marginBottom: '2rem', color: '#999' }}>Subscribe to access our photo gallery</p>
-        <button
-          onClick={() => setShowSubscriptionModal(true)}
-          style={{
-            padding: '1rem 2rem',
-            background: '#667eea',
-            border: 'none',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          View Subscription Plans
-        </button>
-        {showSubscriptionModal && (
-          <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-        )}
-      </div>
-    )
   }
 
   return (
@@ -211,10 +178,6 @@ const Photos = () => {
           photo={selectedPhoto}
           onClose={() => setSelectedPhoto(null)}
         />
-      )}
-
-      {showSubscriptionModal && (
-        <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
       )}
     </div>
   )

@@ -10,6 +10,7 @@ import {
   FiPlay, FiPause, FiVolume2, FiVolumeX
 } from 'react-icons/fi'
 import { useResponsive } from '../hooks/useResponsive'
+import { useDownloads } from '../context/DownloadsContext'
 
 const Videos = () => {
   const { user, subscription } = useAuth()
@@ -354,6 +355,7 @@ const Videos = () => {
 const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, canGoNext, canGoPrevious }) => {
   const { isMobile } = useResponsive()
   const { user, subscription } = useAuth()
+  const { addDownload, downloads } = useDownloads()
   const [isLiked, setIsLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [commentCount, setCommentCount] = useState(0)
@@ -362,8 +364,11 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
   const [isMuted, setIsMuted] = useState(false)
   const [showInterruptionModal, setShowInterruptionModal] = useState(false)
   const videoElementRef = useRef(null)
-  const interruptionTimerRef = useRef(null)
+  const hasInterruptedRef = useRef(false)
   const isFreeUser = !subscription && user?.role !== 'admin'
+  const isDownloaded = downloads?.some(
+    (d) => d.type === 'video' && d.id === video.id
+  )
 
   useEffect(() => {
     if (videoRef) {
@@ -371,7 +376,7 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     }
   }, [videoRef])
 
-  // Sync playing and mute state with video element
+  // Sync playing/mute state and handle interruption based on progress
   useEffect(() => {
     const videoElement = videoElementRef.current
     if (!videoElement) return
@@ -381,10 +386,27 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     const handleVolumeChange = () => {
       setIsMuted(videoElement.muted)
     }
+    const handleTimeUpdate = () => {
+      const duration = videoElement.duration
+      const currentTime = videoElement.currentTime
+
+      if (
+        isFreeUser &&
+        !hasInterruptedRef.current &&
+        duration > 0 &&
+        currentTime >= duration * 0.25
+      ) {
+        videoElement.pause()
+        setIsPlaying(false)
+        setShowInterruptionModal(true)
+        hasInterruptedRef.current = true
+      }
+    }
 
     videoElement.addEventListener('play', handlePlay)
     videoElement.addEventListener('pause', handlePause)
     videoElement.addEventListener('volumechange', handleVolumeChange)
+    videoElement.addEventListener('timeupdate', handleTimeUpdate)
 
     // Initialize mute state
     setIsMuted(videoElement.muted)
@@ -393,8 +415,9 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
       videoElement.removeEventListener('play', handlePlay)
       videoElement.removeEventListener('pause', handlePause)
       videoElement.removeEventListener('volumechange', handleVolumeChange)
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate)
     }
-  }, [])
+  }, [isFreeUser])
 
   // Update playing state when video becomes active/inactive
   useEffect(() => {
@@ -402,55 +425,15 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     if (!videoElement) return
 
     if (isActive) {
+      hasInterruptedRef.current = false
+      setShowInterruptionModal(false)
       videoElement.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
     } else {
       videoElement.pause()
       setIsPlaying(false)
-      // Clear interruption timer when video becomes inactive
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-        interruptionTimerRef.current = null
-      }
       setShowInterruptionModal(false)
     }
   }, [isActive])
-
-  // Handle interruption for free users
-  useEffect(() => {
-    if (!isFreeUser || !isActive || !isPlaying) {
-      // Clear timer if user has subscription or not playing
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-        interruptionTimerRef.current = null
-      }
-      return
-    }
-
-    // Start interruption timer when video starts playing
-    if (isActive && isPlaying && videoElementRef.current) {
-      // Clear any existing timer
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-      }
-      
-      interruptionTimerRef.current = setTimeout(() => {
-        // Pause the video
-        if (videoElementRef.current) {
-          videoElementRef.current.pause()
-          setIsPlaying(false)
-        }
-        // Show interruption modal
-        setShowInterruptionModal(true)
-      }, 20000) // 20 seconds
-    }
-
-    return () => {
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current)
-        interruptionTimerRef.current = null
-      }
-    }
-  }, [isActive, isPlaying, isFreeUser])
 
   useEffect(() => {
     // Fetch interaction counts
@@ -510,6 +493,17 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
       videoElementRef.current.muted = !videoElementRef.current.muted
       setIsMuted(videoElementRef.current.muted)
     }
+  }
+
+  const handleDownload = (e) => {
+    e.stopPropagation()
+    addDownload({
+      type: 'video',
+      id: video.id,
+      title: video.title,
+      description: video.description,
+      file_path: video.file_path
+    })
   }
 
   const handleInterruptionClose = () => {
@@ -629,6 +623,29 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
           title={isMuted ? 'Unmute' : 'Mute'}
         >
           {isMuted ? <FiVolumeX /> : <FiVolume2 />}
+        </button>
+        {/* Download */}
+        <button
+          onClick={handleDownload}
+          disabled={isDownloaded}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: isDownloaded ? '#22c55e' : '#fff',
+            cursor: isDownloaded ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
+            transition: 'all 0.2s',
+            backdropFilter: 'blur(10px)'
+          }}
+          title={isDownloaded ? 'Saved' : 'Download for offline in‑app viewing'}
+        >
+          <FiDownload />
         </button>
       </div>
 

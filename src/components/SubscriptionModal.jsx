@@ -258,21 +258,32 @@ const SubscriptionModal = ({ onClose, onSuccess }) => {
     }
   }
 
+  const handleOverlayClick = (e) => {
+    // Close when clicking on the dark background, not the content
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-      padding: '2rem'
-    }}>
+    <div
+      onClick={handleOverlayClick}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.8)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: '2rem'
+      }}
+    >
       <div style={{
+        position: 'relative',
         background: '#1a1a1a',
         borderRadius: '12px',
         padding: '2rem',
@@ -281,6 +292,24 @@ const SubscriptionModal = ({ onClose, onSuccess }) => {
         maxHeight: '90vh',
         overflow: 'auto'
       }}>
+        {/* Close button in top-right corner */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            background: 'transparent',
+            border: 'none',
+            color: '#fff',
+            fontSize: '1.5rem',
+            cursor: 'pointer'
+          }}
+          aria-label="Close subscription plans"
+        >
+          ×
+        </button>
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '2rem' }}>Loading plans...</div>
         ) : (

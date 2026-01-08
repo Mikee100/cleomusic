@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
@@ -12,6 +13,7 @@ const Favorites = () => {
   const { user, subscription } = useAuth()
   const { playSong } = usePlayer()
   const { isMobile } = useResponsive()
+  const navigate = useNavigate()
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -67,8 +69,8 @@ const Favorites = () => {
   }
 
   const handlePlaySong = (song) => {
-    // Allow free users to play songs (they'll get interrupted after 20 seconds)
-    playSong(song, songs)
+    // Navigate to full-screen song player with video background
+    navigate(`/song/${song.id}`)
   }
 
   return (

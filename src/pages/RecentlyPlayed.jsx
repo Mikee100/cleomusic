@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
@@ -9,6 +10,7 @@ import { FiPlay, FiMusic, FiHeart, FiClock } from 'react-icons/fi'
 const RecentlyPlayed = () => {
   const { user, subscription } = useAuth()
   const { playSong } = usePlayer()
+  const navigate = useNavigate()
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -68,8 +70,8 @@ const RecentlyPlayed = () => {
   }
 
   const handlePlaySong = (song) => {
-    // Allow free users to play songs (they'll get interrupted after 20 seconds)
-    playSong(song, songs)
+    // Navigate to full-screen song player with video background
+    navigate(`/song/${song.id}`)
   }
 
   return (

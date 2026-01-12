@@ -7,6 +7,7 @@ import { API_URL } from '../utils/api.js'
 import { FiPlay, FiPause, FiSkipForward, FiSkipBack, FiMinimize2, FiMaximize2, FiMusic, FiX, FiLoader, FiShuffle, FiRepeat, FiList, FiDownload } from 'react-icons/fi'
 import { useDownloads } from '../context/DownloadsContext'
 import UpgradeInterruptionModal from './UpgradeInterruptionModal'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const MusicPlayer = () => {
   const {
@@ -30,6 +31,7 @@ const MusicPlayer = () => {
   const { addDownload, downloads } = useDownloads()
   const { user, subscription } = useAuth()
   const { isMobile } = useResponsive()
+  const { prefetchNextSongs, prefetchMedia, getPrefetchedAudio } = usePrefetch()
   const audioRef = useRef(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -56,42 +58,44 @@ const MusicPlayer = () => {
     }
   }
 
-  // Attempt to play audio with retry logic
+  // Attempt to play audio with retry logic - more aggressive loading
   const attemptPlay = async (audio, retries = 3) => {
     try {
-      // Wait for audio to have enough data buffered
-      if (audio.readyState < 3) { // HAVE_FUTURE_DATA
-        // Wait for canplay event
+      // Try to play immediately if we have any data (readyState >= 2 = HAVE_CURRENT_DATA)
+      // This allows faster start even with minimal buffering
+      if (audio.readyState < 2) {
+        // Wait for loadeddata event (less data needed than canplay)
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
-            reject(new Error('Timeout waiting for audio to load'))
-          }, 10000) // 10 second timeout
+            // If still not loaded, try playing anyway
+            resolve()
+          }, 3000) // Reduced timeout to 3 seconds
 
-          const canPlayHandler = () => {
+          const loadedDataHandler = () => {
             clearTimeout(timeout)
-            audio.removeEventListener('canplay', canPlayHandler)
+            audio.removeEventListener('loadeddata', loadedDataHandler)
             audio.removeEventListener('error', errorHandler)
             resolve()
           }
 
           const errorHandler = (e) => {
             clearTimeout(timeout)
-            audio.removeEventListener('canplay', canPlayHandler)
+            audio.removeEventListener('loadeddata', loadedDataHandler)
             audio.removeEventListener('error', errorHandler)
             reject(e)
           }
 
-          if (audio.readyState >= 3) {
+          if (audio.readyState >= 2) {
             clearTimeout(timeout)
             resolve()
           } else {
-            audio.addEventListener('canplay', canPlayHandler, { once: true })
+            audio.addEventListener('loadeddata', loadedDataHandler, { once: true })
             audio.addEventListener('error', errorHandler, { once: true })
           }
         })
       }
 
-      // Attempt to play
+      // Attempt to play - browser will buffer as it plays
       const playPromise = audio.play()
       playPromiseRef.current = playPromise
       
@@ -109,7 +113,7 @@ const MusicPlayer = () => {
       // Retry if we haven't exceeded retry limit
       if (retries > 0 && retryCountRef.current < 3) {
         retryCountRef.current++
-        await new Promise(resolve => setTimeout(resolve, 500)) // Wait 500ms before retry
+        await new Promise(resolve => setTimeout(resolve, 300)) // Reduced retry delay
         return attemptPlay(audio, retries - 1)
       }
       
@@ -122,6 +126,16 @@ const MusicPlayer = () => {
     }
   }
 
+  // Prefetch current song immediately when it's set
+  useEffect(() => {
+    if (currentSong?.file_path) {
+      prefetchMedia(currentSong.file_path, 'audio')
+      if (currentSong.background_video_path) {
+        prefetchMedia(currentSong.background_video_path, 'video')
+      }
+    }
+  }, [currentSong?.id, currentSong?.file_path, currentSong?.background_video_path, prefetchMedia])
+
   // Only update audio src when song actually changes
   useEffect(() => {
     if (audioRef.current && currentSong && previousSongIdRef.current !== currentSong.id) {
@@ -133,12 +147,29 @@ const MusicPlayer = () => {
       setPlayError(null)
       retryCountRef.current = 0
       
-      // Update src programmatically to avoid reload
-      audio.src = `${API_URL}${currentSong.file_path}`
-      audio.load()
+      // Load current song's audio immediately
+      if (currentSong.file_path) {
+        const audioUrl = `${API_URL}${currentSong.file_path}`
+        
+        // Check if we have a prefetched audio element we can reuse
+        const prefetchedAudio = getPrefetchedAudio(currentSong.file_path)
+        if (prefetchedAudio && prefetchedAudio.readyState >= 2) {
+          // Use prefetched audio if available and has data
+          audio.src = audioUrl
+          audio.load()
+        } else {
+          // Set preload to auto for faster loading
+          audio.preload = 'auto'
+          audio.src = audioUrl
+          // Start loading immediately
+          audio.load()
+        }
+      }
       
       // Set up one-time listeners for this song change
-      const handleCanPlay = async () => {
+      // Use loadeddata instead of canplay for faster start
+      const handleLoadedData = async () => {
+        setDuration(audio.duration || 0)
         if (wasPlaying) {
           setIsLoading(true)
           try {
@@ -151,6 +182,17 @@ const MusicPlayer = () => {
         }
       }
 
+      // Also try to play immediately if we have metadata (even faster)
+      const handleLoadedMetadata = () => {
+        setDuration(audio.duration || 0)
+        // If we have metadata and readyState >= 2, try playing immediately
+        if (wasPlaying && audio.readyState >= 2) {
+          attemptPlay(audio).catch(() => {
+            // If immediate play fails, wait for loadeddata
+          })
+        }
+      }
+
       const handleError = (e) => {
         console.error('Audio loading error:', e)
         setPlayError('Failed to load audio file')
@@ -158,18 +200,15 @@ const MusicPlayer = () => {
         setIsPlaying(false)
       }
 
-      const handleLoadedMetadata = () => {
-        setDuration(audio.duration)
-      }
-
-      audio.addEventListener('canplay', handleCanPlay, { once: true })
+      // Try to play as soon as we have any data
+      audio.addEventListener('loadeddata', handleLoadedData, { once: true })
       audio.addEventListener('error', handleError, { once: true })
       audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
       
       previousSongIdRef.current = currentSong.id
 
       return () => {
-        audio.removeEventListener('canplay', handleCanPlay)
+        audio.removeEventListener('loadeddata', handleLoadedData)
         audio.removeEventListener('error', handleError)
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
       }
@@ -273,6 +312,14 @@ const MusicPlayer = () => {
     hasInterruptedRef.current = false
     setShowInterruptionModal(false)
   }, [currentSong?.id, isFreeUser])
+
+  // Prefetch next songs when current song changes or playlist updates
+  useEffect(() => {
+    if (playlist && playlist.length > 0 && currentIndex >= 0) {
+      // Prefetch next 2 songs and previous song
+      prefetchNextSongs(playlist, currentIndex, 2)
+    }
+  }, [playlist, currentIndex, prefetchNextSongs])
 
   if (!currentSong) return null
 

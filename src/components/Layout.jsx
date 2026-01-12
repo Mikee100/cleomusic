@@ -253,6 +253,9 @@ const Layout = ({ children }) => {
           <Link to="/videos" style={getLinkStyle('/videos')}>
             <FiVideo /> {(!isCollapsed || isMobile) && 'Videos'}
           </Link>
+          <Link to="/reels" style={getLinkStyle('/reels')}>
+            <FiVideo /> {(!isCollapsed || isMobile) && 'Reels'}
+          </Link>
           <Link to="/instrumentals" style={getLinkStyle('/instrumentals')}>
             <FiMusic /> {(!isCollapsed || isMobile) && 'Instrumentals'}
           </Link>
@@ -308,6 +311,9 @@ const Layout = ({ children }) => {
               </div>
               <Link to="/admin/videos" style={getLinkStyle('/admin/videos')}>
                 <FiVideo /> {(!isCollapsed || isMobile) && 'Videos'}
+              </Link>
+              <Link to="/admin/reels" style={getLinkStyle('/admin/reels')}>
+                <FiVideo /> {(!isCollapsed || isMobile) && 'Reels'}
               </Link>
               
               <div style={getSeparatorStyle()} />

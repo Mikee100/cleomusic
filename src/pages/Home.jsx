@@ -10,11 +10,13 @@ import SongsSection from '../components/SongsSection'
 import InstrumentalsSection from '../components/InstrumentalsSection'
 import { FiMusic, FiHeart, FiPlay, FiList, FiTrendingUp, FiCalendar, FiDisc } from 'react-icons/fi'
 import { useResponsive } from '../hooks/useResponsive'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const Home = () => {
   const { user, subscription } = useAuth()
   const { playSong } = usePlayer()
   const { isMobile } = useResponsive()
+  const { prefetchMedia } = usePrefetch()
   const navigate = useNavigate()
   const [songs, setSongs] = useState([])
   const [albums, setAlbums] = useState([])
@@ -85,8 +87,25 @@ const Home = () => {
   }
 
   const handlePlaySong = (song) => {
+    // Prefetch immediately before navigation
+    if (song.file_path) {
+      prefetchMedia(song.file_path, 'audio')
+    }
+    if (song.background_video_path) {
+      prefetchMedia(song.background_video_path, 'video')
+    }
     // Navigate to full-screen song player with video background
     navigate(`/song/${song.id}`)
+  }
+
+  const handleSongHover = (song) => {
+    // Prefetch on hover for faster loading
+    if (song?.file_path) {
+      prefetchMedia(song.file_path, 'audio')
+    }
+    if (song?.background_video_path) {
+      prefetchMedia(song.background_video_path, 'video')
+    }
   }
 
   const formatDate = (dateString) => {
@@ -346,6 +365,7 @@ const Home = () => {
                     <div
                       key={song.id}
                       onClick={() => handlePlaySong(song)}
+                      onMouseEnter={() => handleSongHover(song)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

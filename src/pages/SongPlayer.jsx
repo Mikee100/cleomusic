@@ -7,15 +7,18 @@ import { useResponsive } from '../hooks/useResponsive'
 import { API_URL } from '../utils/api.js'
 import { 
   FiPlay, FiPause, FiSkipForward, FiSkipBack, FiVolume2, FiVolumeX, 
-  FiX, FiMusic, FiShuffle, FiRepeat, FiList, FiChevronRight 
+  FiX, FiMusic, FiShuffle, FiRepeat, FiList, FiChevronRight, 
+  FiMinimize2, FiMaximize2, FiMoreVertical 
 } from 'react-icons/fi'
 import UpgradeInterruptionModal from '../components/UpgradeInterruptionModal'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const SongPlayer = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { isMobile } = useResponsive()
   const { user, subscription } = useAuth()
+  const { prefetchNextSongs, prefetchMedia } = usePrefetch()
   const { 
     playSong, isPlaying, setIsPlaying, nextSong, previousSong, 
     currentSong, playlist, currentIndex, isShuffle, setIsShuffle,
@@ -25,6 +28,9 @@ const SongPlayer = () => {
   const [loading, setLoading] = useState(true)
   const [showInterruptionModal, setShowInterruptionModal] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState(null)
+  const [hoveredIndex, setHoveredIndex] = useState(null)
   const audioRef = useRef(null)
   const videoRef = useRef(null)
   const [currentTime, setCurrentTime] = useState(0)
@@ -117,11 +123,35 @@ const SongPlayer = () => {
     }
   }, [isPlaying, currentSong, song])
 
+  // Prefetch current song's video immediately when it loads
+  useEffect(() => {
+    if (song?.background_video_path) {
+      prefetchMedia(song.background_video_path, 'video')
+    }
+  }, [song?.background_video_path, prefetchMedia])
+
+  // Prefetch next songs (audio and video) when playlist or current index changes
+  useEffect(() => {
+    if (playlist && playlist.length > 0 && currentIndex >= 0) {
+      // Prefetch next 2 songs and previous song (including videos)
+      prefetchNextSongs(playlist, currentIndex, 2)
+    }
+  }, [playlist, currentIndex, prefetchNextSongs])
+
   const fetchSong = async () => {
     try {
       setLoading(true)
       const response = await axios.get(`/api/songs/${id}`)
-      setSong(response.data.song)
+      const songData = response.data.song
+      setSong(songData)
+      
+      // Immediately prefetch audio and video when song data is fetched
+      if (songData?.file_path) {
+        prefetchMedia(songData.file_path, 'audio')
+      }
+      if (songData?.background_video_path) {
+        prefetchMedia(songData.background_video_path, 'video')
+      }
     } catch (err) {
       console.error('Error fetching song:', err)
       navigate('/')
@@ -200,6 +230,37 @@ const SongPlayer = () => {
     }
   }
 
+  const handleDragStart = (index) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+    setHoveredIndex(index)
+  }
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === dropIndex) return
+    
+    const newPlaylist = [...playlist]
+    const draggedItem = newPlaylist[draggedIndex]
+    newPlaylist.splice(draggedIndex, 1)
+    newPlaylist.splice(dropIndex, 0, draggedItem)
+    
+    const newCurrentIndex = newPlaylist.findIndex(s => s.id === currentSong?.id)
+    reorderQueue(newPlaylist, newCurrentIndex >= 0 ? newCurrentIndex : 0)
+    
+    setDraggedIndex(null)
+    setHoveredIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setHoveredIndex(null)
+  }
+
   if (loading) {
     return (
       <div style={{
@@ -243,14 +304,16 @@ const SongPlayer = () => {
 
   return (
     <div style={{
-      height: '100vh',
+      height: isMinimized ? '120px' : '100vh',
       width: '100vw',
       background: '#0a0a0a',
       position: 'fixed',
       top: 0,
       left: 0,
       overflow: 'hidden',
-      display: 'flex'
+      display: 'flex',
+      transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      zIndex: 9999
     }}>
       {/* Background Video - Full Screen */}
       <div style={{
@@ -270,6 +333,7 @@ const SongPlayer = () => {
             muted
             playsInline
             autoPlay
+            preload="auto"
             onLoadedData={() => {
               if (videoRef.current && isPlaying) {
                 videoRef.current.play().catch(console.error)
@@ -331,37 +395,72 @@ const SongPlayer = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: isMobile ? '0.75rem' : '1rem',
-          flexShrink: 0
+          marginBottom: isMinimized ? '0' : (isMobile ? '0.75rem' : '1rem'),
+          flexShrink: 0,
+          opacity: isMinimized ? 0 : 1,
+          transition: 'opacity 0.3s',
+          pointerEvents: isMinimized ? 'none' : 'auto'
         }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              background: 'rgba(0,0,0,0.5)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '1.1rem',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(0,0,0,0.7)'
-              e.currentTarget.style.transform = 'scale(1.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            <FiX />
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: 'rgba(0,0,0,0.5)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+                transition: 'all 0.2s',
+                backdropFilter: 'blur(10px)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0,0,0,0.7)'
+                e.currentTarget.style.transform = 'scale(1.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <FiX />
+            </button>
+
+            <button
+              onClick={() => setIsMinimized(!isMinimized)}
+              style={{
+                background: 'rgba(0,0,0,0.5)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+                transition: 'all 0.2s',
+                backdropFilter: 'blur(10px)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0,0,0,0.7)'
+                e.currentTarget.style.transform = 'scale(1.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+              title={isMinimized ? 'Maximize' : 'Minimize'}
+            >
+              {isMinimized ? <FiMaximize2 /> : <FiMinimize2 />}
+            </button>
+          </div>
 
           {playlist.length > 1 && (
             <button
@@ -383,9 +482,11 @@ const SongPlayer = () => {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(0,0,0,0.7)'
+                e.currentTarget.style.transform = 'scale(1.05)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
+                e.currentTarget.style.transform = 'scale(1)'
               }}
             >
               <FiList /> {playlist.length}
@@ -393,17 +494,275 @@ const SongPlayer = () => {
           )}
         </div>
 
-        {/* Main Content Area - Flex to fill space */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: isMobile ? '1rem' : '2rem',
-          minHeight: 0,
-          overflow: 'hidden'
-        }}>
+        {/* Minimized View */}
+        {isMinimized ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            height: '100%',
+            padding: '0.75rem 1rem'
+          }}>
+            {/* Top Row - Cover, Info, Controls */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              marginBottom: '0.75rem'
+            }}>
+              {/* Cover Art - Small */}
+              <div style={{
+                width: '70px',
+                height: '70px',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                flexShrink: 0,
+                animation: isPlaying ? 'pulseGlow 2s ease-in-out infinite' : 'none',
+                position: 'relative'
+              }}>
+                {song.cover_image_path ? (
+                  <img
+                    src={`${API_URL}${song.cover_image_path}`}
+                    alt={song.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.5rem',
+                    color: 'rgba(255,255,255,0.3)'
+                  }}>
+                    <FiMusic />
+                  </div>
+                )}
+                {isPlaying && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '4px',
+                    right: '4px',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#667eea',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    boxShadow: '0 0 8px rgba(102, 126, 234, 0.8)'
+                  }} />
+                )}
+              </div>
+
+              {/* Song Info - Compact */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                  fontSize: '0.9rem',
+                  fontWeight: '600',
+                  marginBottom: '0.2rem',
+                  color: '#fff',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {song.title}
+                </h3>
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: 'rgba(255,255,255,0.7)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {song.artist}
+                </p>
+              </div>
+
+              {/* Mini Controls */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={previousSong}
+                  disabled={!playlist || playlist.length <= 1}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
+                    cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
+                    fontSize: '1rem',
+                    padding: '0.3rem',
+                    transition: 'all 0.2s',
+                    borderRadius: '6px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (playlist && playlist.length > 1) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <FiSkipBack />
+                </button>
+
+                <button
+                  onClick={handlePlayToggle}
+                  disabled={isFreeUser && hasInterruptedRef.current}
+                  style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    cursor: (isFreeUser && hasInterruptedRef.current) ? 'not-allowed' : 'pointer',
+                    fontSize: '1.1rem',
+                    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                    transition: 'all 0.2s',
+                    opacity: (isFreeUser && hasInterruptedRef.current) ? 0.5 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!(isFreeUser && hasInterruptedRef.current)) {
+                      e.currentTarget.style.transform = 'scale(1.1)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
+                  }}
+                >
+                  {isPlaying ? <FiPause /> : <FiPlay style={{ marginLeft: '2px' }} />}
+                </button>
+
+                <button
+                  onClick={nextSong}
+                  disabled={!playlist || playlist.length <= 1}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
+                    cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
+                    fontSize: '1rem',
+                    padding: '0.3rem',
+                    transition: 'all 0.2s',
+                    borderRadius: '6px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (playlist && playlist.length > 1) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <FiSkipForward />
+                </button>
+
+                {playlist.length > 1 && (
+                  <button
+                    onClick={() => setShowQueue(!showQueue)}
+                    style={{
+                      background: showQueue ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '6px',
+                      padding: '0.3rem 0.5rem',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(102, 126, 234, 0.3)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = showQueue ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    <FiList />
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsMinimized(false)}
+                  style={{
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '6px',
+                    padding: '0.3rem 0.5rem',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <FiMaximize2 />
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Bar - Mini */}
+            <div style={{ width: '100%' }}>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={currentTime}
+                onChange={handleTimeChange}
+                style={{
+                  width: '100%',
+                  height: '4px',
+                  borderRadius: '2px',
+                  background: 'rgba(255,255,255,0.2)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  WebkitAppearance: 'none',
+                  appearance: 'none'
+                }}
+              />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: '0.3rem',
+                fontSize: '0.65rem',
+                color: 'rgba(255,255,255,0.7)'
+              }}>
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Main Content Area - Flex to fill space */}
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: isMobile ? '1rem' : '2rem',
+              minHeight: 0,
+              overflow: 'hidden'
+            }}>
           {/* Cover Art - Smaller on mobile */}
           <div style={{
             flexShrink: 0,
@@ -507,14 +866,17 @@ const SongPlayer = () => {
         </div>
 
         {/* Player Controls - Compact */}
-        <div style={{
-          background: 'rgba(0,0,0,0.6)',
-          borderRadius: '20px',
-          padding: isMobile ? '1rem' : '1.5rem',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          flexShrink: 0
-        }}>
+        {!isMinimized && (
+          <div style={{
+            background: 'rgba(0,0,0,0.6)',
+            borderRadius: '20px',
+            padding: isMobile ? '1rem' : '1.5rem',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            flexShrink: 0,
+            opacity: isMinimized ? 0 : 1,
+            transition: 'opacity 0.3s'
+          }}>
           {/* Progress Bar */}
           <div style={{ marginBottom: '1rem' }}>
             <input
@@ -764,6 +1126,9 @@ const SongPlayer = () => {
             </div>
           </div>
         </div>
+        )}
+          </>
+        )}
       </div>
 
       {/* Queue Panel */}
@@ -821,6 +1186,11 @@ const SongPlayer = () => {
             {playlist.map((item, index) => (
               <div
                 key={item.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
                 onClick={() => playFromQueue(index)}
                 style={{
                   display: 'flex',
@@ -828,23 +1198,48 @@ const SongPlayer = () => {
                   gap: '0.75rem',
                   padding: '0.6rem',
                   borderRadius: '10px',
-                  cursor: 'pointer',
-                  background: currentIndex === index ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
-                  border: currentIndex === index ? '1px solid rgba(102, 126, 234, 0.5)' : '1px solid transparent',
+                  cursor: 'grab',
+                  background: currentIndex === index 
+                    ? 'rgba(102, 126, 234, 0.2)' 
+                    : hoveredIndex === index 
+                    ? 'rgba(102, 126, 234, 0.1)' 
+                    : draggedIndex === index
+                    ? 'rgba(102, 126, 234, 0.15)'
+                    : 'transparent',
+                  border: currentIndex === index 
+                    ? '1px solid rgba(102, 126, 234, 0.5)' 
+                    : hoveredIndex === index
+                    ? '1px dashed rgba(102, 126, 234, 0.4)'
+                    : '1px solid transparent',
                   marginBottom: '0.4rem',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  transform: draggedIndex === index ? 'scale(0.95)' : 'scale(1)',
+                  opacity: draggedIndex === index ? 0.5 : 1,
+                  position: 'relative'
                 }}
                 onMouseEnter={(e) => {
-                  if (currentIndex !== index) {
+                  if (currentIndex !== index && draggedIndex !== index) {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (currentIndex !== index) {
+                  if (currentIndex !== index && draggedIndex !== index) {
                     e.currentTarget.style.background = 'transparent'
                   }
                 }}
               >
+                {/* Drag Handle */}
+                <div style={{
+                  color: 'rgba(255,255,255,0.4)',
+                  cursor: 'grab',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0.2rem'
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <FiMoreVertical />
+                </div>
                 <div style={{
                   width: '45px',
                   height: '45px',
@@ -886,15 +1281,56 @@ const SongPlayer = () => {
                     {item.artist}
                   </div>
                 </div>
-                {currentIndex === index && isPlaying && (
+                {currentIndex === index && (
                   <div style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: '#667eea',
-                    animation: 'pulse 1.5s ease-in-out infinite',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
                     flexShrink: 0
-                  }} />
+                  }}>
+                    {isPlaying && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '2px',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{
+                          width: '3px',
+                          height: '12px',
+                          background: '#667eea',
+                          borderRadius: '2px',
+                          animation: 'wave 1s ease-in-out infinite',
+                          animationDelay: '0s'
+                        }} />
+                        <div style={{
+                          width: '3px',
+                          height: '16px',
+                          background: '#667eea',
+                          borderRadius: '2px',
+                          animation: 'wave 1s ease-in-out infinite',
+                          animationDelay: '0.1s'
+                        }} />
+                        <div style={{
+                          width: '3px',
+                          height: '12px',
+                          background: '#667eea',
+                          borderRadius: '2px',
+                          animation: 'wave 1s ease-in-out infinite',
+                          animationDelay: '0.2s'
+                        }} />
+                      </div>
+                    )}
+                    <div style={{
+                      fontSize: '0.7rem',
+                      color: '#667eea',
+                      fontWeight: 'bold',
+                      padding: '0.2rem 0.4rem',
+                      background: 'rgba(102, 126, 234, 0.2)',
+                      borderRadius: '4px'
+                    }}>
+                      Now
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -908,6 +1344,7 @@ const SongPlayer = () => {
           ref={audioRef}
           src={audioSrc}
           autoPlay
+          preload="auto"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onLoadedMetadata={() => {
@@ -956,6 +1393,22 @@ const SongPlayer = () => {
           50% {
             opacity: 0.5;
             transform: scale(0.8);
+          }
+        }
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+          }
+          50% {
+            box-shadow: 0 4px 30px rgba(102, 126, 234, 0.6);
+          }
+        }
+        @keyframes wave {
+          0%, 100% {
+            transform: scaleY(0.5);
+          }
+          50% {
+            transform: scaleY(1);
           }
         }
         input[type="range"]::-webkit-slider-thumb {

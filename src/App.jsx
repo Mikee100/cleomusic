@@ -19,9 +19,12 @@ import Payments from './pages/admin/Payments'
 import Plans from './pages/admin/Plans'
 import Photos from './pages/admin/Photos'
 import Videos from './pages/admin/Videos'
+import ReelsAdmin from './pages/admin/Reels'
+import VideoViewer from './pages/admin/VideoViewer'
 import Reactions from './pages/admin/Reactions'
 import ClientPhotos from './pages/Photos'
-import ClientVideos from './pages/Videos'
+import Reels from './pages/Videos'
+import ClientVideos from './pages/ClientVideos'
 import Instrumentals from './pages/Instrumentals'
 import AdminInstrumentals from './pages/admin/Instrumentals'
 import Playlists from './pages/Playlists'
@@ -106,8 +109,16 @@ function App() {
               path="/videos"
               element={
                 <ProtectedRoute>
+                  <ClientVideos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reels"
+              element={
+                <ProtectedRoute>
                   <Layout>
-                    <ClientVideos />
+                    <Reels />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -267,6 +278,24 @@ function App() {
                   <Layout>
                     <Videos />
                   </Layout>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/reels"
+              element={
+                <AdminRoute>
+                  <Layout>
+                    <ReelsAdmin />
+                  </Layout>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/videos/:id"
+              element={
+                <AdminRoute>
+                  <VideoViewer />
                 </AdminRoute>
               }
             />

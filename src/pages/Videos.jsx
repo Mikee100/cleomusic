@@ -7,7 +7,7 @@ import UpgradeInterruptionModal from '../components/UpgradeInterruptionModal'
 import Interactions from '../components/Interactions'
 import { 
   FiVideo, FiX, FiHeart, FiMessageCircle, FiShare2, FiChevronUp, FiChevronDown, FiArrowLeft,
-  FiPlay, FiPause, FiVolume2, FiVolumeX
+  FiPlay, FiPause, FiVolume2, FiVolumeX, FiDownload
 } from 'react-icons/fi'
 import { useResponsive } from '../hooks/useResponsive'
 import { useDownloads } from '../context/DownloadsContext'
@@ -35,7 +35,7 @@ const Videos = () => {
     try {
       setLoading(true)
       const response = await axios.get('/api/videos', {
-        params: { limit: 100 }
+        params: { limit: 100, kind: 'reel' }
       })
       setVideos(response.data.videos || [])
     } catch (err) {
@@ -59,6 +59,25 @@ const Videos = () => {
         }
       }
     })
+    
+    // Prefetch next video for faster loading
+    if (currentIndex < videos.length - 1) {
+      const nextVideo = videos[currentIndex + 1]
+      if (nextVideo?.file_path) {
+        const link = document.createElement('link')
+        link.rel = 'prefetch'
+        link.href = `${import.meta.env.VITE_API_URL || ''}${nextVideo.file_path}`
+        link.as = 'video'
+        document.head.appendChild(link)
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          if (document.head.contains(link)) {
+            document.head.removeChild(link)
+          }
+        }, 30000) // Remove after 30 seconds
+      }
+    }
   }, [currentIndex, videos])
 
   // Handle scroll to snap to videos
@@ -374,6 +393,12 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     if (videoRef) {
       videoRef(videoElementRef.current)
     }
+    
+    // Start loading video metadata even when not active (for faster switching)
+    const videoElement = videoElementRef.current
+    if (videoElement && videoElement.readyState === 0) {
+      videoElement.load()
+    }
   }, [videoRef])
 
   // Sync playing/mute state and handle interruption based on progress
@@ -427,7 +452,32 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
     if (isActive) {
       hasInterruptedRef.current = false
       setShowInterruptionModal(false)
-      videoElement.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
+      
+      // Start loading immediately when video becomes active
+      if (videoElement.readyState < 2) {
+        videoElement.load() // Force reload to start buffering
+      }
+      
+      // Try to play as soon as we have enough data
+      const tryPlay = () => {
+        if (videoElement.readyState >= 2) { // HAVE_CURRENT_DATA
+          videoElement.play()
+            .then(() => setIsPlaying(true))
+            .catch(() => setIsPlaying(false))
+        }
+      }
+      
+      // Try immediately if already loaded
+      tryPlay()
+      
+      // Also try when data becomes available
+      videoElement.addEventListener('loadeddata', tryPlay, { once: true })
+      videoElement.addEventListener('canplay', tryPlay, { once: true })
+      
+      return () => {
+        videoElement.removeEventListener('loadeddata', tryPlay)
+        videoElement.removeEventListener('canplay', tryPlay)
+      }
     } else {
       videoElement.pause()
       setIsPlaying(false)
@@ -543,6 +593,23 @@ const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, c
         loop
         muted={isMuted}
         playsInline
+        preload={isActive ? "auto" : "metadata"}
+        onLoadedData={() => {
+          // Video metadata loaded, ready to play
+          if (isActive && videoElementRef.current) {
+            videoElementRef.current.play().catch(() => {
+              // Autoplay prevented, will need user interaction
+            })
+          }
+        }}
+        onCanPlay={() => {
+          // Video can start playing
+          if (isActive && videoElementRef.current && videoElementRef.current.paused) {
+            videoElementRef.current.play().catch(() => {
+              // Autoplay prevented
+            })
+          }
+        }}
         onClick={handleVideoClick}
         style={{
           width: '100%',

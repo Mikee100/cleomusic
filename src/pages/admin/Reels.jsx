@@ -4,11 +4,11 @@ import axios from 'axios'
 import ReactionsModal from '../../components/ReactionsModal'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
-  FiUpload, FiArchive, FiTrash2, FiEdit, FiVideo, 
+  FiUpload, FiArchive, FiTrash2, FiEdit, FiFilm, 
   FiCheckSquare, FiSearch, FiX, FiPlay, FiMessageCircle
 } from 'react-icons/fi'
 
-const Videos = () => {
+const Reels = () => {
   const navigate = useNavigate()
   const { isMobile } = useResponsive()
   const [videos, setVideos] = useState([])
@@ -34,11 +34,11 @@ const Videos = () => {
     try {
       setLoading(true)
       const response = await axios.get('/api/admin/videos', {
-        params: { archived: filterArchived, search: searchTerm, kind: 'video' }
+        params: { archived: filterArchived, search: searchTerm, kind: 'reel' }
       })
       setVideos(response.data.videos || response.data)
     } catch (err) {
-      console.error('Error fetching videos:', err)
+      console.error('Error fetching reels:', err)
     } finally {
       setLoading(false)
     }
@@ -50,7 +50,7 @@ const Videos = () => {
     const uploadData = new FormData()
     uploadData.append('title', formData.title)
     uploadData.append('description', formData.description || '')
-    uploadData.append('type', 'video')
+    uploadData.append('type', 'reel')
     if (videoFile) uploadData.append('videoFile', videoFile)
 
     try {
@@ -80,7 +80,7 @@ const Videos = () => {
   }
 
   const handleBulkDelete = async () => {
-    if (selectedVideos.length === 0 || !confirm(`Delete ${selectedVideos.length} videos?`)) return
+    if (selectedVideos.length === 0 || !confirm(`Delete ${selectedVideos.length} reels?`)) return
     try {
       await axios.delete('/api/admin/videos/bulk', { data: { videoIds: selectedVideos } })
       setSelectedVideos([])
@@ -117,9 +117,9 @@ const Videos = () => {
           gap: '0.5rem',
           flexWrap: 'wrap'
         }}>
-          <FiVideo /> Videos Management
+          <FiFilm /> Reels Management
         </h1>
-        <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Manage all your videos</p>
+        <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Create and manage short-form vertical reels (9:16 format)</p>
       </div>
 
       <div style={{ 
@@ -139,7 +139,7 @@ const Videos = () => {
         }}>
           <input
             type="text"
-            placeholder="Search videos..."
+            placeholder="Search reels..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -182,7 +182,7 @@ const Videos = () => {
             cursor: 'pointer'
           }}
         >
-          <FiUpload /> Upload Video
+          <FiUpload /> Upload Reel
         </button>
       </div>
 
@@ -268,7 +268,7 @@ const Videos = () => {
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
       ) : videos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
-          No videos found. Upload your first video to get started!
+          No reels found. Upload your first reel to get started!
         </div>
       ) : (
         <>
@@ -297,7 +297,7 @@ const Videos = () => {
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <span style={{ color: '#fff', fontSize: '0.875rem' }}>
-                Select All ({videos.length} {videos.length === 1 ? 'video' : 'videos'})
+                Select All ({videos.length} {videos.length === 1 ? 'reel' : 'reels'})
               </span>
             </div>
           )}
@@ -309,40 +309,40 @@ const Videos = () => {
             gap: '1rem'
           }}>
             {videos.map(video => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              onEdit={(video) => {
-                setEditingVideo(video)
-                setFormData({
-                  title: video.title,
-                  description: video.description || ''
-                })
-              }}
-              onArchive={(id, archived) => {
-                axios.patch(`/api/admin/videos/${id}/archive`, { archived })
-                  .then(() => fetchVideos())
-              }}
-              onDelete={(id) => {
-                if (confirm('Delete this video?')) {
-                  axios.delete(`/api/admin/videos/${id}`)
+              <VideoCard
+                key={video.id}
+                video={video}
+                onEdit={(video) => {
+                  setEditingVideo(video)
+                  setFormData({
+                    title: video.title,
+                    description: video.description || ''
+                  })
+                }}
+                onArchive={(id, archived) => {
+                  axios.patch(`/api/admin/videos/${id}/archive`, { archived })
                     .then(() => fetchVideos())
-                }
-              }}
-              onSelect={toggleSelectVideo}
-              isSelected={selectedVideos.includes(video.id)}
-              onPlay={(video) => {
-                navigate(`/admin/videos/${video.id}`)
-              }}
-              onViewReactions={(video) => {
-                setViewingReactions({
-                  contentType: 'video',
-                  contentId: video.id,
-                  contentTitle: video.title
-                })
-              }}
-            />
-          ))}
+                }}
+                onDelete={(id) => {
+                  if (confirm('Delete this reel?')) {
+                    axios.delete(`/api/admin/videos/${id}`)
+                      .then(() => fetchVideos())
+                  }
+                }}
+                onSelect={toggleSelectVideo}
+                isSelected={selectedVideos.includes(video.id)}
+                onPlay={(video) => {
+                  navigate(`/admin/videos/${video.id}`)
+                }}
+                onViewReactions={(video) => {
+                  setViewingReactions({
+                    contentType: 'video',
+                    contentId: video.id,
+                    contentTitle: video.title
+                  })
+                }}
+              />
+            ))}
           </div>
         </>
       )}
@@ -398,6 +398,8 @@ const Videos = () => {
   )
 }
 
+// Reuse the same VideoCard / Modal components from Videos.jsx if needed
+// For brevity, import or duplicate minimal card implementation here
 const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, onPlay, onViewReactions }) => {
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
   const videoRef = useRef(null)
@@ -413,9 +415,8 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
       
       const captureFrame = () => {
         try {
-          videoElement.currentTime = 1 // Seek to 1 second
+          videoElement.currentTime = 1
         } catch (e) {
-          // If seeking fails, try 0.5 seconds
           videoElement.currentTime = 0.5
         }
       }
@@ -440,11 +441,9 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
       })
       
       videoElement.addEventListener('error', () => {
-        // If video fails to load, keep the default
         setThumbnailUrl(null)
       })
       
-      // Cleanup
       return () => {
         videoElement.src = ''
         videoElement.load()
@@ -477,17 +476,14 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
       />
       <div style={{
         width: '100%',
-        aspectRatio: '16/9',
-        backgroundImage: video.thumbnail_path 
+        aspectRatio: '9/16', // Vertical reel format
+        background: video.thumbnail_path 
           ? `url(${import.meta.env.VITE_API_URL || ''}${video.thumbnail_path})` 
           : thumbnailUrl
             ? `url(${thumbnailUrl})`
-            : 'none',
-        backgroundColor: video.thumbnail_path || thumbnailUrl
-          ? 'transparent'
-          : video.file_path 
-            ? '#1a1a1a'
-            : '#2a2a2a',
+            : video.file_path 
+              ? '#1a1a1a'
+              : '#2a2a2a',
         backgroundSize: (video.thumbnail_path || thumbnailUrl) ? 'cover' : 'auto',
         backgroundPosition: 'center',
         borderRadius: '8px',
@@ -517,34 +513,50 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
             <FiPlay style={{ marginLeft: '4px' }} />
           </div>
         )}
-        {!video.file_path && <FiVideo />}
+        {!video.file_path && <FiFilm />}
       </div>
-    <h3 style={{ marginBottom: '0.25rem' }}>{video.title}</h3>
-    {video.description && (
-      <p style={{ color: '#999', fontSize: '0.875rem', marginBottom: '0.5rem', 
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {video.description}
-      </p>
-    )}
-    {video.uploaded_by_name && (
-      <p style={{ color: '#666', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-        Uploaded by: {video.uploaded_by_name}
-      </p>
-    )}
-    {video.duration && (
-      <p style={{ color: '#667eea', fontSize: '0.75rem', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-        Duration: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
-      </p>
-    )}
-    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-      {video.file_path && (
+      <h3 style={{ marginBottom: '0.25rem' }}>{video.title}</h3>
+      {video.description && (
+        <p style={{ color: '#999', fontSize: '0.875rem', marginBottom: '0.5rem', 
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {video.description}
+        </p>
+      )}
+      {video.uploaded_by_name && (
+        <p style={{ color: '#666', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+          Uploaded by: {video.uploaded_by_name}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+        {video.file_path && (
+          <button
+            onClick={() => onPlay && onPlay(video)}
+            style={{
+              flex: 1,
+              minWidth: '80px',
+              padding: '0.5rem',
+              background: '#667eea',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.25rem',
+              fontWeight: 'bold'
+            }}
+          >
+            <FiPlay /> View
+          </button>
+        )}
         <button
-          onClick={() => onPlay && onPlay(video)}
+          onClick={() => onViewReactions && onViewReactions(video)}
           style={{
             flex: 1,
             minWidth: '80px',
             padding: '0.5rem',
-            background: '#667eea',
+            background: '#3b82f6',
             border: 'none',
             borderRadius: '6px',
             color: '#fff',
@@ -552,88 +564,67 @@ const VideoCard = ({ video, onEdit, onArchive, onDelete, onSelect, isSelected, o
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.25rem',
-            fontWeight: 'bold'
+            gap: '0.25rem'
+          }}
+          title="View Reactions"
+        >
+          <FiMessageCircle /> Reactions
+        </button>
+        <button
+          onClick={() => onEdit(video)}
+          style={{
+            flex: 1,
+            minWidth: '80px',
+            padding: '0.5rem',
+            background: '#2a2a2a',
+            border: '1px solid #333',
+            borderRadius: '6px',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.25rem'
           }}
         >
-          <FiPlay /> Play
+          <FiEdit /> Edit
         </button>
-      )}
-      <button
-        onClick={() => onViewReactions && onViewReactions(video)}
-        style={{
-          flex: 1,
-          minWidth: '80px',
-          padding: '0.5rem',
-          background: '#3b82f6',
-          border: 'none',
-          borderRadius: '6px',
-          color: '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.25rem'
-        }}
-        title="View Reactions"
-      >
-        <FiMessageCircle /> Reactions
-      </button>
-      <button
-        onClick={() => onEdit(video)}
-        style={{
-          flex: 1,
-          minWidth: '80px',
-          padding: '0.5rem',
-          background: '#2a2a2a',
-          border: '1px solid #333',
-          borderRadius: '6px',
-          color: '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.25rem'
-        }}
-      >
-        <FiEdit /> Edit
-      </button>
-      <button
-        onClick={() => onArchive(video.id, !video.is_archived)}
-        style={{
-          flex: 1,
-          minWidth: '80px',
-          padding: '0.5rem',
-          background: '#2a2a2a',
-          border: '1px solid #333',
-          borderRadius: '6px',
-          color: '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.25rem'
-        }}
-      >
-        <FiArchive /> {video.is_archived ? 'Unarchive' : 'Archive'}
-      </button>
-      <button
-        onClick={() => onDelete(video.id)}
-        style={{
-          padding: '0.5rem',
-          background: '#2a2a2a',
-          border: '1px solid #333',
-          borderRadius: '6px',
-          color: '#ef4444',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <FiTrash2 />
-      </button>
-    </div>
+        <button
+          onClick={() => onArchive(video.id, !video.is_archived)}
+          style={{
+            flex: 1,
+            minWidth: '80px',
+            padding: '0.5rem',
+            background: '#2a2a2a',
+            border: '1px solid #333',
+            borderRadius: '6px',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.25rem'
+          }}
+        >
+          <FiArchive /> {video.is_archived ? 'Unarchive' : 'Archive'}
+        </button>
+        <button
+          onClick={() => onDelete(video.id)}
+          style={{
+            padding: '0.5rem',
+            background: '#2a2a2a',
+            border: '1px solid #333',
+            borderRadius: '6px',
+            color: '#ef4444',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <FiTrash2 />
+        </button>
+      </div>
     </div>
   )
 }
@@ -669,7 +660,7 @@ const Modal = ({ children }) => (
 const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit, onClose, isUploading }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-      <h2>Upload Video</h2>
+      <h2>Upload Reel</h2>
       <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.5rem' }}>
         <FiX />
       </button>
@@ -710,7 +701,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
         />
       </div>
       <div style={{ marginBottom: '1.5rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Video File *</label>
+        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Reel Video File *</label>
         <input
           type="file"
           accept="video/*"
@@ -727,7 +718,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
           }}
         />
         <p style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.5rem' }}>
-          Supported formats: MP4, AVI, MOV, WMV, FLV, WebM, MKV, M4V (Max 500MB)
+          Ideal format for vertical reels (9:16). Max 500MB.
         </p>
       </div>
       <div style={{ display: 'flex', gap: '1rem' }}>
@@ -751,21 +742,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
             gap: '0.5rem'
           }}
         >
-          {isUploading ? (
-            <>
-              <div style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderTop: '2px solid #fff',
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite'
-              }} />
-              Uploading...
-            </>
-          ) : (
-            'Upload'
-          )}
+          {isUploading ? 'Uploading...' : 'Upload Reel'}
         </button>
         <button
           type="button"
@@ -791,7 +768,7 @@ const UploadModal = ({ formData, setFormData, videoFile, setVideoFile, onSubmit,
 const EditModal = ({ video, formData, setFormData, onSubmit, onClose }) => (
   <Modal>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-      <h2>Edit Video</h2>
+      <h2>Edit Reel</h2>
       <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.5rem' }}>
         <FiX />
       </button>
@@ -867,5 +844,6 @@ const EditModal = ({ video, formData, setFormData, onSubmit, onClose }) => (
   </Modal>
 )
 
-export default Videos
+export default Reels
+
 

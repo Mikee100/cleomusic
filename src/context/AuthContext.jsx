@@ -4,6 +4,7 @@ import axios from 'axios'
 // Configure axios defaults
 const API_URL = import.meta.env.VITE_API_URL || ''
 axios.defaults.baseURL = API_URL
+axios.defaults.timeout = 10000 // 10 second timeout to prevent indefinite hangs
 
 // Debug: Log API configuration (only in development or if API_URL is missing)
 if (import.meta.env.DEV || !API_URL) {
@@ -41,12 +42,22 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async () => {
     try {
+      // If the backend is on a cold-start platform, the first request might be slow
+      // but the global 10s timeout will eventually trigger the finally block
       const response = await axios.get('/api/auth/me')
       setUser(response.data.user)
       setSubscription(response.data.subscription)
     } catch (error) {
-      localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
+      if (error.code === 'ECONNABORTED') {
+        console.warn('⚠️ Authentication check timed out after 10s. Forcing loading to finished.')
+      } else {
+        console.error('❌ Auth error:', error.message)
+      }
+      // Only remove tokens on specific auth errors, not network timeouts
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token')
+        delete axios.defaults.headers.common['Authorization']
+      }
     } finally {
       setLoading(false)
     }

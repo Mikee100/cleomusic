@@ -41,11 +41,13 @@ const Home = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
+      // Use a shorter timeout for individual home segments if they hang
+      const requestConfig = { timeout: 15000 }
       const [songsResponse, albumsResponse, userStatsResponse, upcomingResponse] = await Promise.all([
-        axios.get('/api/songs', { params: { limit: 12 } }).catch(() => ({ data: { songs: [] } })),
-        axios.get('/api/albums', { params: { limit: 12 } }).catch(() => ({ data: { albums: [] } })),
-        axios.get('/api/users/stats').catch(() => ({ data: null })),
-        axios.get('/api/upcoming').catch(() => ({ data: { upcoming: [] } }))
+        axios.get('/api/songs', { ...requestConfig, params: { limit: 12 } }).catch(() => ({ data: { songs: [] } })),
+        axios.get('/api/albums', { ...requestConfig, params: { limit: 12 } }).catch(() => ({ data: { albums: [] } })),
+        axios.get('/api/users/stats', requestConfig).catch(() => ({ data: null })),
+        axios.get('/api/upcoming', requestConfig).catch(() => ({ data: { upcoming: [] } }))
       ])
 
       setSongs(songsResponse.data.songs || [])

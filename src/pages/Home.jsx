@@ -53,14 +53,13 @@ const Home = () => {
       setUserStats(userStatsResponse.data)
       setUpcoming(upcomingResponse.data.upcoming || [])
 
-      // Check favorites
+      // Check favorites using the data already returned by the server
       if (songsResponse.data.songs?.length > 0) {
-        const favoriteChecks = await Promise.all(
-          songsResponse.data.songs.map(song =>
-            axios.get(`/api/songs/${song.id}/favorite`).then(r => ({ id: song.id, favorited: r.data.favorited })).catch(() => ({ id: song.id, favorited: false }))
-          )
+        const newFavorites = new Set(
+          songsResponse.data.songs
+            .filter(song => song.is_favorited)
+            .map(song => song.id)
         )
-        const newFavorites = new Set(favoriteChecks.filter(f => f.favorited).map(f => f.id))
         setFavorites(newFavorites)
       }
     } catch (err) {
@@ -100,10 +99,10 @@ const Home = () => {
 
   const handleSongHover = (song) => {
     // Prefetch on hover for faster loading
-    if (song?.file_path) {
+    if (song.file_path) {
       prefetchMedia(song.file_path, 'audio')
     }
-    if (song?.background_video_path) {
+    if (song.background_video_path) {
       prefetchMedia(song.background_video_path, 'video')
     }
   }
@@ -117,7 +116,7 @@ const Home = () => {
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
       <HeroSection artistInfo={artistInfo} />
-      
+
       {/* Upcoming Releases Section */}
       {upcoming.length > 0 && (
         <section style={{
@@ -136,8 +135,8 @@ const Home = () => {
           </h2>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMobile 
-              ? 'repeat(auto-fill, minmax(150px, 1fr))' 
+            gridTemplateColumns: isMobile
+              ? 'repeat(auto-fill, minmax(150px, 1fr))'
               : 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: isMobile ? '1rem' : '1.5rem'
           }}>
@@ -164,8 +163,8 @@ const Home = () => {
                 <div style={{
                   width: '100%',
                   aspectRatio: '1',
-                  background: item.cover_image_path 
-                    ? `url(${import.meta.env.VITE_API_URL || ''}${item.cover_image_path})` 
+                  background: item.cover_image_path
+                    ? `url(${import.meta.env.VITE_API_URL || ''}${item.cover_image_path})`
                     : '#2a2a2a',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -197,9 +196,9 @@ const Home = () => {
                   </div>
                 </div>
                 <div style={{ padding: '1rem' }}>
-                  <h3 style={{ 
-                    margin: 0, 
-                    marginBottom: '0.25rem', 
+                  <h3 style={{
+                    margin: 0,
+                    marginBottom: '0.25rem',
                     fontSize: '0.95rem',
                     fontWeight: 'bold',
                     overflow: 'hidden',
@@ -208,10 +207,10 @@ const Home = () => {
                   }}>
                     {item.title || item.name}
                   </h3>
-                  <p style={{ 
-                    margin: 0, 
+                  <p style={{
+                    margin: 0,
                     marginBottom: '0.5rem',
-                    color: '#999', 
+                    color: '#999',
                     fontSize: '0.875rem',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -236,7 +235,7 @@ const Home = () => {
           </div>
         </section>
       )}
-      
+
       {/* User Stats Section */}
       {userStats && (
         <section style={{
@@ -253,7 +252,7 @@ const Home = () => {
           }}>
             Your Library
           </h2>
-          
+
           {/* Stats Grid */}
           <div style={{
             display: 'grid',
@@ -365,7 +364,16 @@ const Home = () => {
                     <div
                       key={song.id}
                       onClick={() => handlePlaySong(song)}
-                      onMouseEnter={() => handleSongHover(song)}
+                      onMouseEnter={() => {
+                        handleSongHover(song)
+                        // Inline style update for hover effect
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = '#222'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = '#1a1a1a'
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -376,15 +384,13 @@ const Home = () => {
                         cursor: 'pointer',
                         transition: 'background 0.2s'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#222'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#1a1a1a'}
                     >
                       <div style={{
                         width: '40px',
                         height: '40px',
                         borderRadius: '6px',
-                        background: song.cover_image_path 
-                          ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})` 
+                        background: song.cover_image_path
+                          ? `url(${import.meta.env.VITE_API_URL || ''}${song.cover_image_path})`
                           : '#2a2a2a',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
@@ -444,18 +450,18 @@ const StatCard = ({ title, value, icon, color, link }) => {
       transition: 'transform 0.2s, box-shadow 0.2s',
       cursor: link ? 'pointer' : 'default'
     }}
-    onMouseEnter={(e) => {
-      if (link) {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
-      }
-    }}
-    onMouseLeave={(e) => {
-      if (link) {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }
-    }}
+      onMouseEnter={(e) => {
+        if (link) {
+          e.currentTarget.style.transform = 'translateY(-2px)'
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (link) {
+          e.currentTarget.style.transform = 'translateY(0)'
+          e.currentTarget.style.boxShadow = 'none'
+        }
+      }}
     >
       <div style={{
         display: 'flex',

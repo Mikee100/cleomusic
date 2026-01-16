@@ -6,6 +6,7 @@ import { usePlayer } from '../context/PlayerContext'
 import SubscriptionModal from '../components/SubscriptionModal'
 import Interactions from '../components/Interactions'
 import { FiPlay, FiMusic, FiHeart, FiClock } from 'react-icons/fi'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const RecentlyPlayed = () => {
   const { user, subscription } = useAuth()
@@ -16,6 +17,7 @@ const RecentlyPlayed = () => {
   const [error, setError] = useState('')
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [favorites, setFavorites] = useState(new Set())
+  const { prefetchMedia } = usePrefetch()
 
   useEffect(() => {
     // Allow free users to access recently played songs (they'll get interrupted after 20 seconds when playing)
@@ -26,19 +28,19 @@ const RecentlyPlayed = () => {
     try {
       setLoading(true)
       const response = await axios.get('/api/songs/recent/played', { params: { limit: 100 } })
-      setSongs(response.data.songs || [])
-      
-      // Check favorites for all songs
-      if (response.data.songs && response.data.songs.length > 0) {
-        const favoriteChecks = await Promise.all(
-          response.data.songs.map(song => 
-            axios.get(`/api/songs/${song.id}/favorite`).then(r => ({ id: song.id, favorited: r.data.favorited })).catch(() => ({ id: song.id, favorited: false }))
-          )
+      const songsData = response.data.songs || []
+      setSongs(songsData)
+
+      // Check favorites using the data already returned by the server
+      if (songsData.length > 0) {
+        const newFavorites = new Set(
+          songsData
+            .filter(song => song.is_favorited)
+            .map(song => song.id)
         )
-        const newFavorites = new Set(favoriteChecks.filter(f => f.favorited).map(f => f.id))
         setFavorites(newFavorites)
       }
-      
+
       setError('')
     } catch (err) {
       console.error('Error fetching recently played:', err)
@@ -114,6 +116,10 @@ const RecentlyPlayed = () => {
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)'
                 e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)'
+
+                // Prefetch media files on hover
+                if (song.file_path) prefetchMedia(song.file_path, 'audio')
+                if (song.background_video_path) prefetchMedia(song.background_video_path, 'video')
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)'

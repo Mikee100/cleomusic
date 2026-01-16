@@ -6,6 +6,7 @@ import { usePlayer } from '../context/PlayerContext'
 import SubscriptionModal from '../components/SubscriptionModal'
 import { useResponsive } from '../hooks/useResponsive'
 import { FiPlay, FiMusic, FiTrash2, FiEdit2, FiX, FiSave, FiArrowLeft } from 'react-icons/fi'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const PlaylistDetail = () => {
   const { id } = useParams()
@@ -13,6 +14,7 @@ const PlaylistDetail = () => {
   const { user, subscription } = useAuth()
   const { playSong } = usePlayer()
   const { isMobile } = useResponsive()
+  const { prefetchMedia } = usePrefetch()
   const [playlist, setPlaylist] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -252,9 +254,9 @@ const PlaylistDetail = () => {
             ) : (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                  <h1 style={{ 
-                    margin: 0, 
-                    fontSize: isMobile ? '1.75rem' : '2.5rem', 
+                  <h1 style={{
+                    margin: 0,
+                    fontSize: isMobile ? '1.75rem' : '2.5rem',
                     fontWeight: 'bold',
                     color: '#fff'
                   }}>
@@ -338,8 +340,8 @@ const PlaylistDetail = () => {
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMobile 
-            ? 'repeat(2, 1fr)' 
+          gridTemplateColumns: isMobile
+            ? 'repeat(2, 1fr)'
             : 'repeat(auto-fill, minmax(180px, 1fr))',
           gap: isMobile ? '0.75rem' : '1.5rem'
         }}>
@@ -359,6 +361,10 @@ const PlaylistDetail = () => {
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)'
                 e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)'
+
+                // Prefetch media files on hover
+                if (song.file_path) prefetchMedia(song.file_path, 'audio')
+                if (song.background_video_path) prefetchMedia(song.background_video_path, 'video')
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)'
@@ -436,21 +442,21 @@ const PlaylistDetail = () => {
                   <FiPlay />
                 </div>
               </div>
-              <h3 style={{ 
-                marginBottom: '0.25rem', 
-                fontSize: '1rem', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
+              <h3 style={{
+                marginBottom: '0.25rem',
+                fontSize: '1rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 fontWeight: '600'
               }}>
                 {song.title}
               </h3>
-              <p style={{ 
-                color: '#999', 
-                fontSize: '0.875rem', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
+              <p style={{
+                color: '#999',
+                fontSize: '0.875rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}>
                 {song.artist}

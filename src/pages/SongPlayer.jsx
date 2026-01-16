@@ -5,10 +5,10 @@ import { usePlayer } from '../context/PlayerContext'
 import { useAuth } from '../context/AuthContext'
 import { useResponsive } from '../hooks/useResponsive'
 import { API_URL } from '../utils/api.js'
-import { 
-  FiPlay, FiPause, FiSkipForward, FiSkipBack, FiVolume2, FiVolumeX, 
-  FiX, FiMusic, FiShuffle, FiRepeat, FiList, FiChevronRight, 
-  FiMinimize2, FiMaximize2, FiMoreVertical 
+import {
+  FiPlay, FiPause, FiSkipForward, FiSkipBack, FiVolume2, FiVolumeX,
+  FiX, FiMusic, FiShuffle, FiRepeat, FiList, FiChevronRight,
+  FiMinimize2, FiMaximize2, FiMoreVertical
 } from 'react-icons/fi'
 import UpgradeInterruptionModal from '../components/UpgradeInterruptionModal'
 import { usePrefetch } from '../hooks/usePrefetch'
@@ -18,9 +18,9 @@ const SongPlayer = () => {
   const navigate = useNavigate()
   const { isMobile } = useResponsive()
   const { user, subscription } = useAuth()
-  const { prefetchNextSongs, prefetchMedia } = usePrefetch()
-  const { 
-    playSong, isPlaying, setIsPlaying, nextSong, previousSong, 
+  const { prefetchNextSongs, prefetchMedia, getPrefetchedVideo } = usePrefetch()
+  const {
+    playSong, isPlaying, setIsPlaying, nextSong, previousSong,
     currentSong, playlist, currentIndex, isShuffle, setIsShuffle,
     repeatMode, setRepeatMode, playFromQueue, reorderQueue
   } = usePlayer()
@@ -39,6 +39,7 @@ const SongPlayer = () => {
   const [isMuted, setIsMuted] = useState(false)
   const [showVolumeSlider, setShowVolumeSlider] = useState(false)
   const hasInterruptedRef = useRef(false)
+  const [videoOpacity, setVideoOpacity] = useState(0)
   const isFreeUser = !subscription && user?.role !== 'admin'
 
   useEffect(() => {
@@ -127,8 +128,16 @@ const SongPlayer = () => {
   useEffect(() => {
     if (song?.background_video_path) {
       prefetchMedia(song.background_video_path, 'video')
+
+      // Try to get prefetched video immediately
+      const prefetchedVideo = getPrefetchedVideo(song.background_video_path)
+      if (prefetchedVideo && videoRef.current) {
+        // We can't easily swap refs on an existing element, but we can 
+        // copy the source or state if needed. More importantly, 
+        // the browser cache will have it.
+      }
     }
-  }, [song?.background_video_path, prefetchMedia])
+  }, [song?.background_video_path, prefetchMedia, getPrefetchedVideo])
 
   // Prefetch next songs (audio and video) when playlist or current index changes
   useEffect(() => {
@@ -144,7 +153,7 @@ const SongPlayer = () => {
       const response = await axios.get(`/api/songs/${id}`)
       const songData = response.data.song
       setSong(songData)
-      
+
       // Immediately prefetch audio and video when song data is fetched
       if (songData?.file_path) {
         prefetchMedia(songData.file_path, 'audio')
@@ -243,15 +252,15 @@ const SongPlayer = () => {
   const handleDrop = (e, dropIndex) => {
     e.preventDefault()
     if (draggedIndex === null || draggedIndex === dropIndex) return
-    
+
     const newPlaylist = [...playlist]
     const draggedItem = newPlaylist[draggedIndex]
     newPlaylist.splice(draggedIndex, 1)
     newPlaylist.splice(dropIndex, 0, draggedItem)
-    
+
     const newCurrentIndex = newPlaylist.findIndex(s => s.id === currentSong?.id)
     reorderQueue(newPlaylist, newCurrentIndex >= 0 ? newCurrentIndex : 0)
-    
+
     setDraggedIndex(null)
     setHoveredIndex(null)
   }
@@ -326,37 +335,62 @@ const SongPlayer = () => {
         overflow: 'hidden'
       }}>
         {videoSrc ? (
-          <video
-            ref={videoRef}
-            src={videoSrc}
-            loop
-            muted
-            playsInline
-            autoPlay
-            preload="auto"
-            onLoadedData={() => {
-              if (videoRef.current && isPlaying) {
-                videoRef.current.play().catch(console.error)
-              }
-            }}
-            onError={(e) => {
-              console.error('Video load error:', e)
-            }}
-            style={{
+          <>
+            {/* High-quality blurred placeholder while video loads */}
+            <div style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              background: song.cover_image_path
+                ? `url(${API_URL}${song.cover_image_path})`
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(20px)',
+              transform: 'scale(1.1)',
               position: 'absolute',
               top: 0,
-              left: 0
-            }}
-          />
+              left: 0,
+              opacity: 1 - videoOpacity,
+              transition: 'opacity 1s ease-in-out',
+              zIndex: 0
+            }} />
+            <video
+              ref={videoRef}
+              src={videoSrc}
+              loop
+              muted
+              playsInline
+              autoPlay
+              preload="auto"
+              crossOrigin="anonymous"
+              onCanPlay={() => {
+                setVideoOpacity(1)
+                if (videoRef.current && isPlaying) {
+                  videoRef.current.play().catch(console.error)
+                }
+              }}
+              onError={(e) => {
+                console.error('Video load error:', e)
+              }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                opacity: videoOpacity,
+                transition: 'opacity 1s ease-in-out',
+                zIndex: 1
+              }}
+            />
+          </>
         ) : (
           <div style={{
             width: '100%',
             height: '100%',
-            background: song.cover_image_path 
-              ? `url(${API_URL}${song.cover_image_path})` 
+            background: song.cover_image_path
+              ? `url(${API_URL}${song.cover_image_path})`
               : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -763,370 +797,370 @@ const SongPlayer = () => {
               minHeight: 0,
               overflow: 'hidden'
             }}>
-          {/* Cover Art - Smaller on mobile */}
-          <div style={{
-            flexShrink: 0,
-            width: isMobile ? '200px' : '300px',
-            height: isMobile ? '200px' : '300px',
-            borderRadius: '20px',
-            overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-            position: 'relative'
-          }}>
-            {song.cover_image_path ? (
-              <img
-                src={`${API_URL}${song.cover_image_path}`}
-                alt={song.title}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-              />
-            ) : (
+              {/* Cover Art - Smaller on mobile */}
               <div style={{
-                width: '100%',
-                height: '100%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '3rem',
-                color: 'rgba(255,255,255,0.3)'
-              }}>
-                <FiMusic />
-              </div>
-            )}
-            {videoSrc && (
-              <div style={{
-                position: 'absolute',
-                top: '0.5rem',
-                right: '0.5rem',
-                background: 'rgba(0,0,0,0.7)',
-                padding: '0.3rem 0.6rem',
-                borderRadius: '6px',
-                fontSize: '0.7rem',
-                color: '#fff',
-                backdropFilter: 'blur(10px)'
-              }}>
-                🎬 Video
-              </div>
-            )}
-          </div>
-
-          {/* Song Details - Compact */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            textAlign: isMobile ? 'center' : 'left',
-            minWidth: 0,
-            overflow: 'hidden'
-          }}>
-            <h1 style={{
-              fontSize: isMobile ? '1.5rem' : '2.5rem',
-              fontWeight: 'bold',
-              marginBottom: '0.5rem',
-              color: '#fff',
-              textShadow: '0 2px 20px rgba(0,0,0,0.5)',
-              lineHeight: '1.2',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {song.title}
-            </h1>
-
-            <p style={{
-              fontSize: isMobile ? '1rem' : '1.5rem',
-              color: 'rgba(255,255,255,0.9)',
-              marginBottom: '0.5rem',
-              textShadow: '0 2px 10px rgba(0,0,0,0.5)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {song.artist}
-            </p>
-
-            {song.album && (
-              <p style={{
-                fontSize: isMobile ? '0.875rem' : '1.1rem',
-                color: 'rgba(255,255,255,0.7)',
-                textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                flexShrink: 0,
+                width: isMobile ? '200px' : '300px',
+                height: isMobile ? '200px' : '300px',
+                borderRadius: '20px',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {song.album}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Player Controls - Compact */}
-        {!isMinimized && (
-          <div style={{
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '20px',
-            padding: isMobile ? '1rem' : '1.5rem',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            flexShrink: 0,
-            opacity: isMinimized ? 0 : 1,
-            transition: 'opacity 0.3s'
-          }}>
-          {/* Progress Bar */}
-          <div style={{ marginBottom: '1rem' }}>
-            <input
-              type="range"
-              min="0"
-              max={duration || 0}
-              value={currentTime}
-              onChange={handleTimeChange}
-              style={{
-                width: '100%',
-                height: '6px',
-                borderRadius: '3px',
-                background: 'rgba(255,255,255,0.2)',
-                outline: 'none',
-                cursor: 'pointer',
-                WebkitAppearance: 'none',
-                appearance: 'none'
-              }}
-            />
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginTop: '0.5rem',
-              fontSize: '0.75rem',
-              color: 'rgba(255,255,255,0.8)'
-            }}>
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Main Controls */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: isMobile ? '0.5rem' : '1rem',
-            marginBottom: '0.75rem'
-          }}>
-            {/* Shuffle */}
-            <button
-              onClick={() => setIsShuffle(!isShuffle)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: isShuffle ? '#667eea' : 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                fontSize: '1.1rem',
-                padding: '0.4rem',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onMouseEnter={(e) => {
-                if (!isShuffle) {
-                  e.currentTarget.style.color = '#fff'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isShuffle) {
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-                }
-              }}
-              title="Shuffle"
-            >
-              <FiShuffle style={{ 
-                filter: isShuffle ? 'drop-shadow(0 0 6px rgba(102, 126, 234, 0.8))' : 'none'
-              }} />
-            </button>
-
-            {/* Previous */}
-            <button
-              onClick={previousSong}
-              disabled={!playlist || playlist.length <= 1}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
-                cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
-                fontSize: '1.3rem',
-                padding: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (playlist && playlist.length > 1) {
-                  e.currentTarget.style.transform = 'scale(1.2)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              <FiSkipBack />
-            </button>
-
-            {/* Play/Pause */}
-            <button
-              onClick={handlePlayToggle}
-              disabled={isFreeUser && hasInterruptedRef.current}
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none',
-                borderRadius: '50%',
-                width: isMobile ? '56px' : '64px',
-                height: isMobile ? '56px' : '64px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                cursor: (isFreeUser && hasInterruptedRef.current) ? 'not-allowed' : 'pointer',
-                fontSize: '1.5rem',
-                boxShadow: '0 8px 30px rgba(102, 126, 234, 0.5)',
-                transition: 'all 0.3s',
-                opacity: (isFreeUser && hasInterruptedRef.current) ? 0.5 : 1
-              }}
-              onMouseEnter={(e) => {
-                if (!(isFreeUser && hasInterruptedRef.current)) {
-                  e.currentTarget.style.transform = 'scale(1.1)'
-                  e.currentTarget.style.boxShadow = '0 12px 40px rgba(102, 126, 234, 0.7)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-                e.currentTarget.style.boxShadow = '0 8px 30px rgba(102, 126, 234, 0.5)'
-              }}
-            >
-              {isPlaying ? <FiPause /> : <FiPlay style={{ marginLeft: '3px' }} />}
-            </button>
-
-            {/* Next */}
-            <button
-              onClick={nextSong}
-              disabled={!playlist || playlist.length <= 1}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
-                cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
-                fontSize: '1.3rem',
-                padding: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (playlist && playlist.length > 1) {
-                  e.currentTarget.style.transform = 'scale(1.2)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              <FiSkipForward />
-            </button>
-
-            {/* Repeat */}
-            <button
-              onClick={toggleRepeat}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: repeatMode !== 'off' ? '#667eea' : 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                fontSize: '1.1rem',
-                padding: '0.4rem',
-                transition: 'all 0.2s',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
                 position: 'relative'
-              }}
-              onMouseEnter={(e) => {
-                if (repeatMode === 'off') {
-                  e.currentTarget.style.color = '#fff'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (repeatMode === 'off') {
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-                }
-              }}
-              title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
-            >
-              <FiRepeat style={{ 
-                filter: repeatMode !== 'off' ? 'drop-shadow(0 0 6px rgba(102, 126, 234, 0.8))' : 'none',
-                transform: repeatMode === 'one' ? 'scale(1.15)' : 'scale(1)'
-              }} />
-              {repeatMode === 'one' && (
-                <span style={{
-                  position: 'absolute',
-                  bottom: '-6px',
-                  right: '50%',
-                  transform: 'translateX(50%)',
-                  fontSize: '0.5rem',
-                  color: '#667eea',
-                  fontWeight: 'bold'
-                }}>1</span>
-              )}
-            </button>
-          </div>
+              }}>
+                {song.cover_image_path ? (
+                  <img
+                    src={`${API_URL}${song.cover_image_path}`}
+                    alt={song.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '3rem',
+                    color: 'rgba(255,255,255,0.3)'
+                  }}>
+                    <FiMusic />
+                  </div>
+                )}
+                {videoSrc && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    background: 'rgba(0,0,0,0.7)',
+                    padding: '0.3rem 0.6rem',
+                    borderRadius: '6px',
+                    fontSize: '0.7rem',
+                    color: '#fff',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    🎬 Video
+                  </div>
+                )}
+              </div>
 
-          {/* Volume Control */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem'
-          }}>
-            <button
-              onClick={toggleMute}
-              onMouseEnter={() => setShowVolumeSlider(true)}
-              onMouseLeave={() => setShowVolumeSlider(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                padding: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-            >
-              {isMuted ? <FiVolumeX /> : <FiVolume2 />}
-            </button>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              width: showVolumeSlider || isMobile ? '100px' : '0',
-              overflow: 'hidden',
-              transition: 'width 0.3s'
-            }}>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                style={{
-                  width: '100%',
-                  height: '4px',
-                  borderRadius: '2px',
-                  background: 'rgba(255,255,255,0.2)',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  WebkitAppearance: 'none',
-                  appearance: 'none'
-                }}
-              />
+              {/* Song Details - Compact */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                textAlign: isMobile ? 'center' : 'left',
+                minWidth: 0,
+                overflow: 'hidden'
+              }}>
+                <h1 style={{
+                  fontSize: isMobile ? '1.5rem' : '2.5rem',
+                  fontWeight: 'bold',
+                  marginBottom: '0.5rem',
+                  color: '#fff',
+                  textShadow: '0 2px 20px rgba(0,0,0,0.5)',
+                  lineHeight: '1.2',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {song.title}
+                </h1>
+
+                <p style={{
+                  fontSize: isMobile ? '1rem' : '1.5rem',
+                  color: 'rgba(255,255,255,0.9)',
+                  marginBottom: '0.5rem',
+                  textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {song.artist}
+                </p>
+
+                {song.album && (
+                  <p style={{
+                    fontSize: isMobile ? '0.875rem' : '1.1rem',
+                    color: 'rgba(255,255,255,0.7)',
+                    textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {song.album}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-        )}
+
+            {/* Player Controls - Compact */}
+            {!isMinimized && (
+              <div style={{
+                background: 'rgba(0,0,0,0.6)',
+                borderRadius: '20px',
+                padding: isMobile ? '1rem' : '1.5rem',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                flexShrink: 0,
+                opacity: isMinimized ? 0 : 1,
+                transition: 'opacity 0.3s'
+              }}>
+                {/* Progress Bar */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration || 0}
+                    value={currentTime}
+                    onChange={handleTimeChange}
+                    style={{
+                      width: '100%',
+                      height: '6px',
+                      borderRadius: '3px',
+                      background: 'rgba(255,255,255,0.2)',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      WebkitAppearance: 'none',
+                      appearance: 'none'
+                    }}
+                  />
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginTop: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: 'rgba(255,255,255,0.8)'
+                  }}>
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+
+                {/* Main Controls */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isMobile ? '0.5rem' : '1rem',
+                  marginBottom: '0.75rem'
+                }}>
+                  {/* Shuffle */}
+                  <button
+                    onClick={() => setIsShuffle(!isShuffle)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: isShuffle ? '#667eea' : 'rgba(255,255,255,0.7)',
+                      cursor: 'pointer',
+                      fontSize: '1.1rem',
+                      padding: '0.4rem',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isShuffle) {
+                        e.currentTarget.style.color = '#fff'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isShuffle) {
+                        e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
+                      }
+                    }}
+                    title="Shuffle"
+                  >
+                    <FiShuffle style={{
+                      filter: isShuffle ? 'drop-shadow(0 0 6px rgba(102, 126, 234, 0.8))' : 'none'
+                    }} />
+                  </button>
+
+                  {/* Previous */}
+                  <button
+                    onClick={previousSong}
+                    disabled={!playlist || playlist.length <= 1}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
+                      cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
+                      fontSize: '1.3rem',
+                      padding: '0.4rem',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (playlist && playlist.length > 1) {
+                        e.currentTarget.style.transform = 'scale(1.2)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                  >
+                    <FiSkipBack />
+                  </button>
+
+                  {/* Play/Pause */}
+                  <button
+                    onClick={handlePlayToggle}
+                    disabled={isFreeUser && hasInterruptedRef.current}
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: isMobile ? '56px' : '64px',
+                      height: isMobile ? '56px' : '64px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      cursor: (isFreeUser && hasInterruptedRef.current) ? 'not-allowed' : 'pointer',
+                      fontSize: '1.5rem',
+                      boxShadow: '0 8px 30px rgba(102, 126, 234, 0.5)',
+                      transition: 'all 0.3s',
+                      opacity: (isFreeUser && hasInterruptedRef.current) ? 0.5 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!(isFreeUser && hasInterruptedRef.current)) {
+                        e.currentTarget.style.transform = 'scale(1.1)'
+                        e.currentTarget.style.boxShadow = '0 12px 40px rgba(102, 126, 234, 0.7)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = '0 8px 30px rgba(102, 126, 234, 0.5)'
+                    }}
+                  >
+                    {isPlaying ? <FiPause /> : <FiPlay style={{ marginLeft: '3px' }} />}
+                  </button>
+
+                  {/* Next */}
+                  <button
+                    onClick={nextSong}
+                    disabled={!playlist || playlist.length <= 1}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: (!playlist || playlist.length <= 1) ? 'rgba(255,255,255,0.3)' : '#fff',
+                      cursor: (!playlist || playlist.length <= 1) ? 'not-allowed' : 'pointer',
+                      fontSize: '1.3rem',
+                      padding: '0.4rem',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (playlist && playlist.length > 1) {
+                        e.currentTarget.style.transform = 'scale(1.2)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                  >
+                    <FiSkipForward />
+                  </button>
+
+                  {/* Repeat */}
+                  <button
+                    onClick={toggleRepeat}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: repeatMode !== 'off' ? '#667eea' : 'rgba(255,255,255,0.7)',
+                      cursor: 'pointer',
+                      fontSize: '1.1rem',
+                      padding: '0.4rem',
+                      transition: 'all 0.2s',
+                      position: 'relative'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (repeatMode === 'off') {
+                        e.currentTarget.style.color = '#fff'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (repeatMode === 'off') {
+                        e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
+                      }
+                    }}
+                    title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
+                  >
+                    <FiRepeat style={{
+                      filter: repeatMode !== 'off' ? 'drop-shadow(0 0 6px rgba(102, 126, 234, 0.8))' : 'none',
+                      transform: repeatMode === 'one' ? 'scale(1.15)' : 'scale(1)'
+                    }} />
+                    {repeatMode === 'one' && (
+                      <span style={{
+                        position: 'absolute',
+                        bottom: '-6px',
+                        right: '50%',
+                        transform: 'translateX(50%)',
+                        fontSize: '0.5rem',
+                        color: '#667eea',
+                        fontWeight: 'bold'
+                      }}>1</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Volume Control */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <button
+                    onClick={toggleMute}
+                    onMouseEnter={() => setShowVolumeSlider(true)}
+                    onMouseLeave={() => setShowVolumeSlider(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      padding: '0.4rem',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {isMuted ? <FiVolumeX /> : <FiVolume2 />}
+                  </button>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: showVolumeSlider || isMobile ? '100px' : '0',
+                    overflow: 'hidden',
+                    transition: 'width 0.3s'
+                  }}>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={isMuted ? 0 : volume}
+                      onChange={handleVolumeChange}
+                      style={{
+                        width: '100%',
+                        height: '4px',
+                        borderRadius: '2px',
+                        background: 'rgba(255,255,255,0.2)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        WebkitAppearance: 'none',
+                        appearance: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1199,18 +1233,18 @@ const SongPlayer = () => {
                   padding: '0.6rem',
                   borderRadius: '10px',
                   cursor: 'grab',
-                  background: currentIndex === index 
-                    ? 'rgba(102, 126, 234, 0.2)' 
-                    : hoveredIndex === index 
-                    ? 'rgba(102, 126, 234, 0.1)' 
-                    : draggedIndex === index
-                    ? 'rgba(102, 126, 234, 0.15)'
-                    : 'transparent',
-                  border: currentIndex === index 
-                    ? '1px solid rgba(102, 126, 234, 0.5)' 
+                  background: currentIndex === index
+                    ? 'rgba(102, 126, 234, 0.2)'
                     : hoveredIndex === index
-                    ? '1px dashed rgba(102, 126, 234, 0.4)'
-                    : '1px solid transparent',
+                      ? 'rgba(102, 126, 234, 0.1)'
+                      : draggedIndex === index
+                        ? 'rgba(102, 126, 234, 0.15)'
+                        : 'transparent',
+                  border: currentIndex === index
+                    ? '1px solid rgba(102, 126, 234, 0.5)'
+                    : hoveredIndex === index
+                      ? '1px dashed rgba(102, 126, 234, 0.4)'
+                      : '1px solid transparent',
                   marginBottom: '0.4rem',
                   transition: 'all 0.2s',
                   transform: draggedIndex === index ? 'scale(0.95)' : 'scale(1)',
@@ -1236,7 +1270,7 @@ const SongPlayer = () => {
                   alignItems: 'center',
                   padding: '0.2rem'
                 }}
-                onMouseDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   <FiMoreVertical />
                 </div>
@@ -1245,8 +1279,8 @@ const SongPlayer = () => {
                   height: '45px',
                   borderRadius: '6px',
                   overflow: 'hidden',
-                  background: item.cover_image_path 
-                    ? `url(${API_URL}${item.cover_image_path})` 
+                  background: item.cover_image_path
+                    ? `url(${API_URL}${item.cover_image_path})`
                     : '#2a2a2a',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',

@@ -8,6 +8,7 @@ import AddToPlaylistModal from '../components/AddToPlaylistModal'
 import Interactions from '../components/Interactions'
 import { useResponsive } from '../hooks/useResponsive'
 import { FiPlay, FiMusic, FiHeart, FiList } from 'react-icons/fi'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const Favorites = () => {
   const { user, subscription } = useAuth()
@@ -20,6 +21,7 @@ const Favorites = () => {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [favorites, setFavorites] = useState(new Set())
   const [addToPlaylistSongId, setAddToPlaylistSongId] = useState(null)
+  const { prefetchMedia } = usePrefetch()
 
   useEffect(() => {
     // Allow free users to access favorites (they'll get interrupted after 20 seconds when playing)
@@ -31,11 +33,11 @@ const Favorites = () => {
       setLoading(true)
       const response = await axios.get('/api/songs/favorites')
       setSongs(response.data.songs || [])
-      
+
       // All songs here are favorites
       const newFavorites = new Set(response.data.songs?.map(song => song.id) || [])
       setFavorites(newFavorites)
-      
+
       setError('')
     } catch (err) {
       console.error('Error fetching favorites:', err)
@@ -76,11 +78,11 @@ const Favorites = () => {
   return (
     <div>
       <div style={{ marginBottom: isMobile ? '1rem' : '2rem' }}>
-        <h1 style={{ 
-          marginBottom: '1rem', 
-          fontSize: isMobile ? '1.5rem' : '2rem', 
-          display: 'flex', 
-          alignItems: 'center', 
+        <h1 style={{
+          marginBottom: '1rem',
+          fontSize: isMobile ? '1.5rem' : '2rem',
+          display: 'flex',
+          alignItems: 'center',
           gap: '0.5rem',
           flexWrap: 'wrap'
         }}>
@@ -101,8 +103,8 @@ const Favorites = () => {
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMobile 
-            ? 'repeat(2, 1fr)' 
+          gridTemplateColumns: isMobile
+            ? 'repeat(2, 1fr)'
             : 'repeat(auto-fill, minmax(180px, 1fr))',
           gap: isMobile ? '0.75rem' : '1.5rem'
         }}>
@@ -122,6 +124,10 @@ const Favorites = () => {
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)'
                 e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.3)'
+
+                // Prefetch media files on hover
+                if (song.file_path) prefetchMedia(song.file_path, 'audio')
+                if (song.background_video_path) prefetchMedia(song.background_video_path, 'video')
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)'

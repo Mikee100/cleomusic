@@ -5,6 +5,7 @@ import { usePlayer } from '../context/PlayerContext'
 import { useResponsive } from '../hooks/useResponsive'
 import { API_URL } from '../utils/api'
 import { FiDownload, FiMusic, FiVideo, FiTrash2 } from 'react-icons/fi'
+import { usePrefetch } from '../hooks/usePrefetch'
 
 const Downloads = () => {
   const { user } = useAuth()
@@ -12,6 +13,7 @@ const Downloads = () => {
   const { playSong } = usePlayer()
   const { isMobile } = useResponsive()
   const navigate = useNavigate()
+  const { prefetchMedia } = usePrefetch()
 
   const handlePlaySong = (song) => {
     navigate(`/song/${song.id}`)
@@ -69,6 +71,10 @@ const Downloads = () => {
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = '#1f2937'
                     e.currentTarget.style.transform = 'translateY(-2px)'
+
+                    // Prefetch media files on hover
+                    if (song.file_path) prefetchMedia(song.file_path, 'audio')
+                    if (song.background_video_path) prefetchMedia(song.background_video_path, 'video')
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = '#111827'

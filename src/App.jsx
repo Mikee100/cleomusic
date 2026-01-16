@@ -23,8 +23,9 @@ import ReelsAdmin from './pages/admin/Reels'
 import VideoViewer from './pages/admin/VideoViewer'
 import Reactions from './pages/admin/Reactions'
 import ClientPhotos from './pages/Photos'
-import Reels from './pages/Videos'
+import Reels from './pages/Reels'
 import ClientVideos from './pages/ClientVideos'
+import VideoDetail from './pages/VideoDetail'
 import Instrumentals from './pages/Instrumentals'
 import AdminInstrumentals from './pages/admin/Instrumentals'
 import Playlists from './pages/Playlists'
@@ -43,285 +44,291 @@ function App() {
         <DownloadsProvider>
           <Router>
             <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Home />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Profile />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/popular"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Popular />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/recently-played"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <RecentlyPlayed />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/favorites"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Favorites />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/photos"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ClientPhotos />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/videos"
-              element={
-                <ProtectedRoute>
-                  <ClientVideos />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/reels"
-              element={
-                <ProtectedRoute>
-                  <Layout>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Home />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Profile />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/popular"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Popular />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/recently-played"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <RecentlyPlayed />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/favorites"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Favorites />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/photos"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ClientPhotos />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/videos"
+                element={
+                  <ProtectedRoute>
+                    <ClientVideos />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/videos/:id"
+                element={
+                  <ProtectedRoute>
+                    <VideoDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reels"
+                element={
+                  <ProtectedRoute>
                     <Reels />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/instrumentals"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Instrumentals />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/playlists"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Playlists />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/playlists/:id"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <PlaylistDetail />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/song/:id"
-              element={
-                <ProtectedRoute>
-                  <SongPlayer />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/downloads"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Downloads />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <AdminDashboard />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/dashboard"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/songs"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Songs />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/albums"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Albums />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/albums/:id"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <AlbumDetail />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/instrumentals"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <AdminInstrumentals />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Users />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/payments"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Payments />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/plans"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Plans />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/photos"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Photos />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/videos"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Videos />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/reels"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <ReelsAdmin />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/videos/:id"
-              element={
-                <AdminRoute>
-                  <VideoViewer />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/reactions"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Reactions />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/upcoming"
-              element={
-                <AdminRoute>
-                  <Layout>
-                    <Upcoming />
-                  </Layout>
-                </AdminRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/instrumentals"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Instrumentals />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/playlists"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Playlists />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/playlists/:id"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <PlaylistDetail />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/song/:id"
+                element={
+                  <ProtectedRoute>
+                    <SongPlayer />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/downloads"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Downloads />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <AdminDashboard />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/dashboard"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/songs"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Songs />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/albums"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Albums />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/albums/:id"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <AlbumDetail />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/instrumentals"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <AdminInstrumentals />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Users />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/payments"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Payments />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/plans"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Plans />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/photos"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Photos />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/videos"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Videos />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/reels"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <ReelsAdmin />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/videos/:id"
+                element={
+                  <AdminRoute>
+                    <VideoViewer />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/reactions"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Reactions />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/upcoming"
+                element={
+                  <AdminRoute>
+                    <Layout>
+                      <Upcoming />
+                    </Layout>
+                  </AdminRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
         </DownloadsProvider>
       </PlayerProvider>
     </AuthProvider>

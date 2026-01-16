@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
-import { FiThumbsUp, FiThumbsDown, FiMessageCircle, FiX } from 'react-icons/fi'
+import { FiThumbsUp, FiThumbsDown, FiMessageCircle, FiX, FiSend } from 'react-icons/fi'
 
-const Interactions = ({ contentType, contentId, compact = false }) => {
+const Interactions = ({ contentType, contentId, compact = false, showComments: externalShowComments, onToggleComments }) => {
   const { user } = useAuth()
   const [likes, setLikes] = useState({ count: 0, liked: false })
   const [dislikes, setDislikes] = useState({ count: 0, disliked: false })
   const [comments, setComments] = useState([])
-  const [showComments, setShowComments] = useState(false)
+  const [internalShowComments, setInternalShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const showComments = externalShowComments !== undefined ? externalShowComments : internalShowComments
+  const setShowComments = (val) => {
+    if (onToggleComments) {
+      onToggleComments(typeof val === 'function' ? val(showComments) : val)
+    } else {
+      setInternalShowComments(val)
+    }
+  }
 
   useEffect(() => {
     if (contentId) {
@@ -48,7 +57,6 @@ const Interactions = ({ contentType, contentId, compact = false }) => {
         count: response.data.liked ? prev.count + 1 : prev.count - 1,
         liked: response.data.liked
       }))
-      // If user liked, remove dislike if exists
       if (response.data.liked && dislikes.disliked) {
         setDislikes(prev => ({ ...prev, count: prev.count - 1, disliked: false }))
       }
@@ -67,7 +75,6 @@ const Interactions = ({ contentType, contentId, compact = false }) => {
         count: response.data.disliked ? prev.count + 1 : prev.count - 1,
         disliked: response.data.disliked
       }))
-      // If user disliked, remove like if exists
       if (response.data.disliked && likes.liked) {
         setLikes(prev => ({ ...prev, count: prev.count - 1, liked: false }))
       }
@@ -227,141 +234,76 @@ const Interactions = ({ contentType, contentId, compact = false }) => {
                 background: '#1a1a1a',
                 border: '1px solid #333',
                 borderRadius: '12px',
-                padding: '3rem',
+                padding: '2rem',
                 width: '90%',
-                maxWidth: '1600px',
-                maxHeight: '90vh',
+                maxWidth: '600px',
+                maxHeight: '80vh',
                 display: 'flex',
                 flexDirection: 'column',
                 boxSizing: 'border-box'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h3 style={{ margin: 0, color: '#fff', fontSize: '2rem', fontWeight: 'bold' }}>Comments ({comments.length})</h3>
-                <button
-                  onClick={() => setShowComments(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontSize: '1.5rem',
-                    padding: '0.25rem',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.25rem', fontWeight: 'bold' }}>Comments ({comments.length})</h3>
+                <button onClick={() => setShowComments(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.25rem' }}>
                   <FiX />
                 </button>
               </div>
 
               {user && (
-                <form onSubmit={handleAddComment} style={{ marginBottom: '2rem' }}>
+                <form onSubmit={handleAddComment} style={{ marginBottom: '1.5rem', position: 'relative' }}>
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Write a comment..."
+                    placeholder="Add a comment..."
                     style={{
                       width: '100%',
-                      minHeight: '150px',
-                      padding: '1.25rem',
+                      minHeight: '80px',
+                      padding: '0.75rem',
                       background: '#0a0a0a',
                       border: '1px solid #333',
-                      borderRadius: '10px',
+                      borderRadius: '8px',
                       color: '#fff',
-                      fontSize: '1.125rem',
-                      fontFamily: 'inherit',
-                      resize: 'vertical',
-                      marginBottom: '1rem',
-                      lineHeight: '1.6'
+                      fontSize: '0.9rem',
+                      resize: 'none',
+                      marginBottom: '0.5rem'
                     }}
                   />
                   <button
                     type="submit"
                     disabled={!newComment.trim() || submitting}
                     style={{
-                      padding: '1rem 2.5rem',
+                      position: 'absolute',
+                      right: '10px',
+                      bottom: '20px',
                       background: '#667eea',
                       border: 'none',
-                      borderRadius: '10px',
+                      borderRadius: '50%',
+                      width: '36px',
+                      height: '36px',
                       color: '#fff',
-                      fontSize: '1.125rem',
-                      fontWeight: 'bold',
-                      cursor: newComment.trim() && !submitting ? 'pointer' : 'not-allowed',
-                      opacity: newComment.trim() && !submitting ? 1 : 0.5,
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (newComment.trim() && !submitting) {
-                        e.currentTarget.style.background = '#5568d3'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#667eea'
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      opacity: newComment.trim() ? 1 : 0.5
                     }}
                   >
-                    {submitting ? 'Posting...' : 'Post Comment'}
+                    <FiSend />
                   </button>
                 </form>
               )}
 
-              <div style={{ maxHeight: '65vh', overflowY: 'auto', flex: 1, paddingRight: '1rem' }}>
-                {comments.length === 0 ? (
-                  <p style={{ color: '#666', textAlign: 'center', padding: '4rem', fontSize: '1.25rem' }}>No comments yet. Be the first to comment!</p>
-                ) : (
-                  comments.map(comment => (
-                    <div
-                      key={comment.id}
-                      style={{
-                        padding: '1.5rem',
-                        borderBottom: '1px solid #333',
-                        marginBottom: '1.5rem',
-                        background: '#0f0f0f',
-                        borderRadius: '10px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                        <div>
-                          <strong style={{ color: '#fff', fontSize: '1.125rem', display: 'block', marginBottom: '0.5rem' }}>
-                            {comment.user_name || comment.user_email || 'Anonymous'}
-                          </strong>
-                          <span style={{ color: '#666', fontSize: '1rem' }}>
-                            {formatDate(comment.created_at)}
-                          </span>
-                        </div>
-                        {(user?.id === comment.user_id || user?.role === 'admin') && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#ef4444',
-                              cursor: 'pointer',
-                              padding: '0.5rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              fontSize: '1.5rem',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                              e.currentTarget.style.borderRadius = '4px'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'transparent'
-                            }}
-                            title="Delete comment"
-                          >
-                            <FiX />
-                          </button>
-                        )}
-                      </div>
-                      <p style={{ color: '#ccc', fontSize: '1.125rem', margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.7' }}>
-                        {comment.comment_text}
-                      </p>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {comments.map(comment => (
+                  <div key={comment.id} style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: '#fff', fontWeight: '600', fontSize: '0.85rem' }}>{comment.user_name || 'Anonymous'}</span>
+                      <span style={{ color: '#666', fontSize: '0.75rem' }}>{formatDate(comment.created_at)}</span>
                     </div>
-                  ))
-                )}
+                    <p style={{ color: '#ccc', margin: 0, fontSize: '0.9rem' }}>{comment.comment_text}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -370,209 +312,174 @@ const Interactions = ({ contentType, contentId, compact = false }) => {
     )
   }
 
+  // Standard YouTube-style in-page rendering
   return (
-    <div style={{ marginTop: '1rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-        <button
-          onClick={handleLike}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: likes.liked ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-            border: `1px solid ${likes.liked ? '#3b82f6' : '#333'}`,
-            color: likes.liked ? '#3b82f6' : '#fff',
-            cursor: user ? 'pointer' : 'not-allowed',
-            fontSize: '0.875rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            if (user) e.currentTarget.style.background = likes.liked ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255,255,255,0.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = likes.liked ? 'rgba(59, 130, 246, 0.2)' : 'transparent'
-          }}
-          disabled={!user}
-        >
-          <FiThumbsUp />
-          <span>{likes.count}</span>
-        </button>
-        <button
-          onClick={handleDislike}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: dislikes.disliked ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-            border: `1px solid ${dislikes.disliked ? '#ef4444' : '#333'}`,
-            color: dislikes.disliked ? '#ef4444' : '#fff',
-            cursor: user ? 'pointer' : 'not-allowed',
-            fontSize: '0.875rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            if (user) e.currentTarget.style.background = dislikes.disliked ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = dislikes.disliked ? 'rgba(239, 68, 68, 0.2)' : 'transparent'
-          }}
-          disabled={!user}
-        >
-          <FiThumbsDown />
-          <span>{dislikes.count}</span>
-        </button>
-        <button
-          onClick={() => setShowComments(!showComments)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: showComments ? 'rgba(255,255,255,0.1)' : 'transparent',
-            border: '1px solid #333',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-          onMouseLeave={(e) => {
-            if (!showComments) e.currentTarget.style.background = 'transparent'
-          }}
-        >
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', overflow: 'hidden' }}>
+          <button
+            onClick={handleLike}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              background: likes.liked ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+              border: 'none',
+              color: likes.liked ? '#3b82f6' : '#fff',
+              cursor: user ? 'pointer' : 'not-allowed',
+              padding: '0.6rem 1.25rem',
+              fontSize: '1rem',
+              transition: 'all 0.2s',
+              borderRight: '1px solid rgba(255,255,255,0.1)'
+            }}
+            disabled={!user}
+          >
+            <FiThumbsUp style={{ fontSize: '1.25rem' }} />
+            <span style={{ fontWeight: '500' }}>{likes.count}</span>
+          </button>
+          <button
+            onClick={handleDislike}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              background: dislikes.disliked ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+              border: 'none',
+              color: dislikes.disliked ? '#ef4444' : '#fff',
+              cursor: user ? 'pointer' : 'not-allowed',
+              padding: '0.6rem 1.25rem',
+              fontSize: '1rem',
+              transition: 'all 0.2s'
+            }}
+            disabled={!user}
+          >
+            <FiThumbsDown style={{ fontSize: '1.25rem' }} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold' }}>
           <FiMessageCircle />
-          <span>{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</span>
-        </button>
+          <span>{comments.length} Comments</span>
+        </div>
       </div>
 
-      {showComments && (
-        <div style={{
-          background: '#1a1a1a',
-          border: '1px solid #333',
-          borderRadius: '12px',
-          padding: '3rem',
-          marginTop: '1.5rem',
-          width: '100%',
-          maxWidth: 'none'
-        }}>
-          {user && (
-            <form onSubmit={handleAddComment} style={{ marginBottom: '1.5rem' }}>
-              <textarea
+      <div style={{ marginTop: '2rem' }}>
+        {user && (
+          <form onSubmit={handleAddComment} style={{ display: 'flex', gap: '15px', marginBottom: '2.5rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: '#667eea',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              fontWeight: 'bold',
+              fontSize: '1.1rem'
+            }}>
+              {user.name?.[0].toUpperCase() || user.email?.[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..."
+                placeholder="Add a comment..."
                 style={{
                   width: '100%',
-                  minHeight: '120px',
-                  padding: '1rem',
-                  background: '#0a0a0a',
-                  border: '1px solid #333',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '1rem',
-                  fontFamily: 'inherit',
-                  resize: 'vertical',
-                  marginBottom: '0.75rem',
-                  lineHeight: '1.5'
-                }}
-              />
-              <button
-                type="submit"
-                disabled={!newComment.trim() || submitting}
-                style={{
-                  padding: '0.75rem 2rem',
-                  background: '#667eea',
+                  background: 'transparent',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderBottom: '2px solid rgba(255,255,255,0.1)',
+                  padding: '8px 0',
                   color: '#fff',
                   fontSize: '1rem',
-                  fontWeight: 'bold',
-                  cursor: newComment.trim() && !submitting ? 'pointer' : 'not-allowed',
-                  opacity: newComment.trim() && !submitting ? 1 : 0.5,
-                  transition: 'all 0.2s'
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
                 }}
-                onMouseEnter={(e) => {
-                  if (newComment.trim() && !submitting) {
-                    e.currentTarget.style.background = '#5568d3'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#667eea'
-                }}
-              >
-                {submitting ? 'Posting...' : 'Post Comment'}
-              </button>
-            </form>
-          )}
-
-          <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-            {comments.length === 0 ? (
-              <p style={{ color: '#666', textAlign: 'center', padding: '3rem', fontSize: '1rem' }}>No comments yet. Be the first to comment!</p>
-            ) : (
-              comments.map(comment => (
-                <div
-                  key={comment.id}
-                  style={{
-                    padding: '1.25rem',
-                    borderBottom: '1px solid #333',
-                    marginBottom: '1rem',
-                    background: '#0f0f0f',
-                    borderRadius: '8px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                    <div>
-                      <strong style={{ color: '#fff', fontSize: '1rem', display: 'block', marginBottom: '0.25rem' }}>
-                        {comment.user_name || comment.user_email || 'Anonymous'}
-                      </strong>
-                      <span style={{ color: '#666', fontSize: '0.875rem' }}>
-                        {formatDate(comment.created_at)}
-                      </span>
-                    </div>
-                    {(user?.id === comment.user_id || user?.role === 'admin') && (
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#ef4444',
-                          cursor: 'pointer',
-                          padding: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          fontSize: '1.25rem',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                          e.currentTarget.style.borderRadius = '4px'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'transparent'
-                        }}
-                        title="Delete comment"
-                      >
-                        <FiX />
-                      </button>
-                    )}
-                  </div>
-                  <p style={{ color: '#ccc', fontSize: '1rem', margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                    {comment.comment_text}
-                  </p>
+                onFocus={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              />
+              {newComment.trim() && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setNewComment('')}
+                    style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', padding: '8px 16px', borderRadius: '18px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    style={{
+                      background: '#667eea',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      padding: '8px 16px',
+                      borderRadius: '18px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {submitting ? 'Posting...' : 'Comment'}
+                  </button>
                 </div>
-              ))
-            )}
-          </div>
+              )}
+            </div>
+          </form>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {comments.map(comment => (
+            <div key={comment.id} style={{ display: 'flex', gap: '15px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: '#333',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '0.9rem',
+                color: '#aaa'
+              }}>
+                {(comment.user_name?.[0] || comment.user_email?.[0] || '?').toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>
+                    @{comment.user_name || comment.user_email?.split('@')[0] || 'anonymous'}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{formatDate(comment.created_at)}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.95rem', color: '#eee', lineHeight: '1.5' }}>{comment.comment_text}</p>
+
+                <div style={{ marginTop: '8px', display: 'flex', gap: '15px' }}>
+                  {/* Minimalist actions like YouTube */}
+                  {(user?.id === comment.user_id || user?.role === 'admin') && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.8rem' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {comments.length === 0 && (
+            <p style={{ color: '#666', textAlign: 'center', padding: '2rem' }}>No comments yet. Be the first to share your thoughts!</p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
 export default Interactions
-

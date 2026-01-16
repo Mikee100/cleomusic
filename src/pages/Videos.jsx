@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
@@ -18,24 +18,23 @@ const Videos = () => {
   const navigate = useNavigate()
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
-  const containerRef = useRef(null)
-  const videoRefs = useRef({})
-  const touchStartY = useRef(0)
-  const touchEndY = useRef(0)
-  const isScrolling = useRef(false)
+  const [selectedVideo, setSelectedVideo] = useState(null)
+  const [filter, setFilter] = useState('all') // 'all', 'video', 'reel'
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
-    // Allow free users to access videos (they'll get interrupted after 20 seconds)
     fetchVideos()
-  }, [subscription, user])
+  }, [filter, searchQuery])
 
   const fetchVideos = async () => {
     try {
       setLoading(true)
       const response = await axios.get('/api/videos', {
-        params: { limit: 20, kind: 'reel' }
+        params: {
+          limit: 40,
+          kind: filter === 'all' ? undefined : filter,
+          search: searchQuery || undefined
+        }
       })
       setVideos(response.data.videos || [])
     } catch (err) {
@@ -45,153 +44,391 @@ const Videos = () => {
     }
   }
 
-  // Auto-play current video and pause others
-  useEffect(() => {
-    videos.forEach((video, index) => {
-      const videoElement = videoRefs.current[video.id]
-      if (videoElement) {
-        if (index === currentIndex) {
-          videoElement.play().catch(() => {
-            // Autoplay was prevented, user interaction required
-          })
-        } else {
-          videoElement.pause()
-        }
-      }
-    })
-
-    // Prefetch next video for faster loading - limit to just the next one
-    if (currentIndex < videos.length - 1) {
-      const nextVideo = videos[currentIndex + 1]
-      if (nextVideo?.file_path) {
-        const prefetchUrl = `${import.meta.env.VITE_API_URL || ''}${nextVideo.file_path}`
-
-        // Use a more modern and reliable preloading approach for videos
-        const video = document.createElement('video')
-        video.preload = 'auto'
-        video.src = prefetchUrl
-
-        // Clean up after a delay or when we move past
-        const cleanup = () => {
-          video.src = ''
-          video.load()
-        }
-
-        const timeoutId = setTimeout(cleanup, 60000)
-        return () => {
-          clearTimeout(timeoutId)
-          cleanup()
-        }
-      }
-    }
-  }, [currentIndex, videos])
-
-  // Handle scroll to snap to videos
-  const handleScroll = useCallback(() => {
-    if (isScrolling.current) return
-
-    const container = containerRef.current
-    if (!container) return
-
-    const scrollTop = container.scrollTop
-    const videoHeight = window.innerHeight
-    const newIndex = Math.round(scrollTop / videoHeight)
-
-    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < videos.length) {
-      setCurrentIndex(newIndex)
-    }
-  }, [currentIndex, videos.length])
-
-  // Smooth scroll to video
-  const scrollToVideo = (index) => {
-    if (index < 0 || index >= videos.length) return
-
-    isScrolling.current = true
-    const container = containerRef.current
-    if (container) {
-      container.scrollTo({
-        top: index * window.innerHeight,
-        behavior: 'smooth'
-      })
-    }
-
-    setTimeout(() => {
-      isScrolling.current = false
-      setCurrentIndex(index)
-    }, 500)
-  }
-
-  // Touch handlers for swipe
-  const handleTouchStart = (e) => {
-    touchStartY.current = e.touches[0].clientY
-  }
-
-  const handleTouchEnd = (e) => {
-    touchEndY.current = e.changedTouches[0].clientY
-    handleSwipe()
-  }
-
-  const handleSwipe = () => {
-    const diff = touchStartY.current - touchEndY.current
-    const minSwipeDistance = 50
-
-    if (Math.abs(diff) > minSwipeDistance) {
-      if (diff > 0) {
-        // Swipe up - next video
-        scrollToVideo(currentIndex + 1)
-      } else {
-        // Swipe down - previous video
-        scrollToVideo(currentIndex - 1)
-      }
-    }
-  }
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        e.preventDefault()
-        scrollToVideo(currentIndex + 1)
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault()
-        scrollToVideo(currentIndex - 1)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentIndex, videos.length])
-
-  // Allow free users to access videos - they'll get interrupted after 20 seconds
-
-  if (loading) {
-    return (
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#0a0a0b',
+      color: '#fff',
+      paddingBottom: '2rem'
+    }}>
+      {/* Search and Navigation Bar */}
       <div style={{
+        padding: isMobile ? '1rem' : '1.5rem 3rem',
         display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        background: '#0a0a0a'
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'flex-start' : 'center',
+        gap: '1.5rem',
+        background: 'rgba(10, 10, 11, 0.8)',
+        backdropFilter: 'blur(20px)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
       }}>
-        <div style={{ color: '#fff', fontSize: '1.2rem' }}>Loading videos...</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button
+            onClick={() => navigate('/')}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+          >
+            <FiArrowLeft />
+          </button>
+          <div>
+            <h1 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.75rem', fontWeight: 800 }}>
+              Discover Videos
+            </h1>
+            <p style={{ margin: 0, opacity: 0.5, fontSize: '0.8rem' }}>
+              Explore premium music videos and exclusives
+            </p>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: '1rem',
+          width: isMobile ? '100%' : 'auto',
+          alignItems: 'center'
+        }}>
+          {/* Filters */}
+          <div style={{
+            display: 'flex',
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '4px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            {['all', 'video', 'reel'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: filter === f ? '#667eea' : 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {f}s
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-    )
+
+      {/* Video Grid */}
+      <div style={{
+        padding: isMobile ? '1rem' : '2rem 3rem',
+        display: 'grid',
+        gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '280px' : '320px'}, 1fr))`,
+        gap: '2rem'
+      }}>
+        {loading ? (
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} style={{
+              aspectRatio: '16/9',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '20px',
+              animation: 'pulse 1.5s infinite'
+            }} />
+          ))
+        ) : videos.length === 0 ? (
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', opacity: 0.5 }}>
+            No videos found
+          </div>
+        ) : (
+          videos.map((video) => (
+            <VideoCard
+              key={video.id}
+              video={video}
+              onClick={() => setSelectedVideo(video)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Full Screen Player Overlay */}
+      {selectedVideo && (
+        <PremiumVideoPlayer
+          video={selectedVideo}
+          onClose={() => setSelectedVideo(null)}
+        />
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+          100% { opacity: 0.5; }
+        }
+        .premium-slider {
+          -webkit-appearance: none;
+          width: 100%;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 3px;
+          outline: none;
+          cursor: pointer;
+        }
+        .premium-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 14px;
+          height: 14px;
+          background: #fff;
+          border-radius: 50%;
+          box-shadow: 0 0 10px rgba(102, 126, 234, 0.8);
+          transition: transform 0.2s;
+        }
+        .premium-slider:hover::-webkit-slider-thumb {
+          transform: scale(1.3);
+        }
+        .glass-morphism {
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+const VideoCard = ({ video, onClick }) => {
+  const [isHovered, setIsHovered] = useState(false)
+  const videoRef = useRef(null)
+
+  useEffect(() => {
+    let timeout;
+    if (isHovered && videoRef.current) {
+      // Small delay before playing for smoother browsing
+      timeout = setTimeout(() => {
+        videoRef.current.play().catch(() => { })
+      }, 300);
+    } else if (videoRef.current) {
+      videoRef.current.pause()
+      videoRef.current.currentTime = 0
+    }
+    return () => clearTimeout(timeout);
+  }, [isHovered])
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onClick}
+      style={{
+        cursor: 'pointer',
+        transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        transform: isHovered ? 'translateY(-8px)' : 'translateY(0)',
+        zIndex: isHovered ? 10 : 1
+      }}
+    >
+      <div style={{
+        position: 'relative',
+        aspectRatio: '16/9',
+        borderRadius: '20px',
+        overflow: 'hidden',
+        background: '#1a1a1c',
+        boxShadow: isHovered ? '0 30px 60px rgba(0,0,0,0.5)' : '0 10px 30px rgba(0,0,0,0.2)',
+        border: isHovered ? '4px solid #667eea' : '4px solid #ffffff',
+        transition: 'border-color 0.3s ease, border-width 0.3s ease',
+        boxSizing: 'border-box'
+      }}>
+        {/* Thumbnail Placeholder */}
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: isHovered ? 'none' : 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #1a1a1c, #2a2a2c)',
+          position: 'relative'
+        }}>
+          {/* If there was a thumbnail we'd use it, otherwise a premium icon/gradient */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            opacity: 0.1,
+            backgroundImage: 'radial-gradient(circle at 20% 20%, #667eea 0%, transparent 40%)'
+          }} />
+          <FiPlay size={40} style={{ opacity: 0.2, color: '#667eea' }} />
+        </div>
+
+        {/* Muted Preview on Hover */}
+        <video
+          ref={videoRef}
+          src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
+          muted
+          loop
+          playsInline
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: isHovered ? 'block' : 'none',
+            background: '#000'
+          }}
+        />
+
+        {/* Bottom Info Overlay */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '1.5rem 1rem 1rem',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          opacity: isHovered ? 0 : 1,
+          transition: 'opacity 0.3s'
+        }}>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              color: '#fff'
+            }}>
+              {video.title}
+            </h3>
+          </div>
+          <div style={{
+            background: 'rgba(102, 126, 234, 0.2)',
+            color: '#667eea',
+            padding: '2px 8px',
+            borderRadius: '6px',
+            fontSize: '0.65rem',
+            fontWeight: 800,
+            marginLeft: '10px',
+            border: '1px solid rgba(102, 126, 234, 0.2)',
+            letterSpacing: '0.5px'
+          }}>
+            {video.type?.toUpperCase() || 'REEL'}
+          </div>
+        </div>
+
+        {/* Hover Controls */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%) scale(0.8)',
+          width: '60px',
+          height: '60px',
+          background: 'rgba(102, 126, 234, 0.95)',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: isHovered ? 1 : 0,
+          transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          boxShadow: '0 0 30px rgba(102, 126, 234, 0.6)',
+          transform: isHovered ? 'translate(-50%, -50%) scale(1)' : 'translate(-50%, -50%) scale(0.8)'
+        }}>
+          <FiPlay size={24} fill="white" color="white" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const PremiumVideoPlayer = ({ video, onClose }) => {
+  const { isMobile } = useResponsive()
+  const { user, subscription } = useAuth()
+  const { addDownload, downloads } = useDownloads()
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [showInterruptionModal, setShowInterruptionModal] = useState(false)
+  const [showComments, setShowComments] = useState(false)
+  const videoRef = useRef(null)
+  const hasInterruptedRef = useRef(false)
+  const isFreeUser = !subscription && user?.role !== 'admin'
+
+  const isDownloaded = downloads?.some(
+    (d) => d.type === 'video' && d.id === video.id
+  )
+
+  useEffect(() => {
+    // Esc to close
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
+
+  const handlePlayToggle = () => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(console.error)
+        setIsPlaying(true)
+      } else {
+        videoRef.current.pause()
+        setIsPlaying(false)
+      }
+    }
   }
 
-  if (videos.length === 0) {
-    return (
-      <div style={{
-        textAlign: 'center',
-        padding: '4rem',
-        color: '#666',
-        background: '#0a0a0a',
-        minHeight: '100vh'
-      }}>
-        <FiVideo style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3 }} />
-        <h2>No videos found</h2>
-        <p>Check back later for new content!</p>
-      </div>
-    )
+  const handleTimeUpdate = () => {
+    const v = videoRef.current
+    if (!v) return
+    setCurrentTime(v.currentTime)
+
+    if (isFreeUser && !hasInterruptedRef.current && v.currentTime >= v.duration * 0.25) {
+      v.pause()
+      setIsPlaying(false)
+      setShowInterruptionModal(true)
+      hasInterruptedRef.current = true
+    }
+  }
+
+  const handleSeek = (e) => {
+    const time = parseFloat(e.target.value)
+    if (videoRef.current) {
+      videoRef.current.currentTime = time
+      setCurrentTime(time)
+    }
+  }
+
+  const formatTime = (time) => {
+    const mins = Math.floor(time / 60)
+    const secs = Math.floor(time % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   return (
@@ -201,707 +438,297 @@ const Videos = () => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: '#000',
-      overflow: 'hidden',
-      touchAction: 'pan-y'
+      background: 'rgba(5, 5, 6, 0.98)',
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: 'column',
+      backdropFilter: 'blur(30px)'
     }}>
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        style={{
-          height: '100vh',
-          overflowY: 'scroll',
-          scrollSnapType: 'y mandatory',
-          scrollBehavior: 'smooth',
-          WebkitOverflowScrolling: 'touch',
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none' // IE/Edge
-        }}
-        className="video-reel-container"
-        onWheel={(e) => {
-          // Prevent horizontal scrolling
-          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-            e.preventDefault()
-          }
-        }}
-      >
-        {videos.map((video, index) => (
-          <VideoReelItem
-            key={video.id}
-            video={video}
-            index={index}
-            isActive={index === currentIndex}
-            videoRef={(el) => {
-              videoRefs.current[video.id] = el
+      {/* Top Header */}
+      <div style={{
+        padding: isMobile ? '1rem' : '1.5rem 2.5rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)',
+        zIndex: 10
+      }}>
+        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
             }}
-            onNext={() => scrollToVideo(index + 1)}
-            onPrevious={() => scrollToVideo(index - 1)}
-            canGoNext={index < videos.length - 1}
-            canGoPrevious={index > 0}
-          />
-        ))}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+          >
+            <FiX size={24} />
+          </button>
+          <div style={{ overflow: 'hidden' }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {video.title}
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.5 }}>{video.uploaded_by_name || 'Cleo Artist'}</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {!isMobile && <Interactions contentType="video" contentId={video.id} />}
+          <button
+            onClick={() => setShowComments(!showComments)}
+            style={{
+              background: showComments ? '#667eea' : 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '30px',
+              padding: '10px 24px',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              transition: 'all 0.3s'
+            }}
+          >
+            <FiMessageCircle size={18} />
+            {!isMobile && 'Comments'}
+          </button>
+          <button
+            onClick={() => addDownload(video)}
+            disabled={isDownloaded}
+            style={{
+              background: isDownloaded ? '#22c55e' : 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              cursor: 'pointer',
+              transition: 'all 0.3s'
+            }}
+          >
+            <FiDownload size={20} />
+          </button>
+        </div>
       </div>
 
-      {/* Navigation indicators - Moved to left side to avoid interference */}
-      {!isMobile && videos.length > 1 && (
+      {/* Media & Sidebar Wrapper */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        {/* Main Player Display */}
         <div style={{
-          position: 'fixed',
-          left: '20px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 100,
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem'
+          justifyContent: 'center',
+          background: '#000',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <button
-            onClick={() => scrollToVideo(currentIndex - 1)}
-            disabled={currentIndex === 0}
+          <video
+            ref={videoRef}
+            src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
+            playsInline
+            crossOrigin="anonymous"
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={(e) => setDuration(e.target.duration)}
             style={{
-              padding: '0.75rem',
-              background: currentIndex === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)',
-              border: 'none',
-              borderRadius: '50%',
-              color: '#fff',
-              cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: currentIndex === 0 ? 0.3 : 1,
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              width: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              boxShadow: '0 0 100px rgba(102, 126, 234, 0.1)'
             }}
-            onMouseEnter={(e) => {
-              if (currentIndex > 0) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
-                e.currentTarget.style.transform = 'scale(1.1)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = currentIndex === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            <FiChevronUp size={24} />
-          </button>
-          <button
-            onClick={() => scrollToVideo(currentIndex + 1)}
-            disabled={currentIndex === videos.length - 1}
-            style={{
-              padding: '0.75rem',
-              background: currentIndex === videos.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)',
-              border: 'none',
-              borderRadius: '50%',
-              color: '#fff',
-              cursor: currentIndex === videos.length - 1 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: currentIndex === videos.length - 1 ? 0.3 : 1,
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              if (currentIndex < videos.length - 1) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
-                e.currentTarget.style.transform = 'scale(1.1)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = currentIndex === videos.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            <FiChevronDown size={24} />
-          </button>
-        </div>
-      )}
+            onClick={handlePlayToggle}
+          />
 
-      {/* Back button and video counter */}
-      <div style={{
-        position: 'fixed',
-        top: '20px',
-        left: '20px',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem'
-      }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            background: 'rgba(0,0,0,0.5)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            color: '#fff',
-            cursor: 'pointer',
+          {/* Large Center Play Overlay */}
+          {!isPlaying && (
+            <div
+              onClick={handlePlayToggle}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '100px',
+                height: '100px',
+                background: 'rgba(102, 126, 234, 0.95)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 0 40px rgba(102, 126, 234, 0.4)',
+                transition: 'transform 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1)'}
+            >
+              <FiPlay size={44} fill="white" color="white" />
+            </div>
+          )}
+
+          {/* Player controls bar */}
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: isMobile ? '1.5rem' : '3rem',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.25rem',
-            backdropFilter: 'blur(10px)',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
-            e.currentTarget.style.transform = 'scale(1.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(0,0,0,0.5)'
-            e.currentTarget.style.transform = 'scale(1)'
-          }}
-          title="Go back"
-        >
-          <FiArrowLeft />
-        </button>
-        <div style={{
-          background: 'rgba(0,0,0,0.5)',
-          padding: '0.5rem 1rem',
-          borderRadius: '20px',
-          color: '#fff',
-          fontSize: '0.875rem',
-          backdropFilter: 'blur(10px)'
-        }}>
-          {currentIndex + 1} / {videos.length}
+            flexDirection: 'column',
+            gap: '1.25rem'
+          }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={currentTime}
+                onChange={handleSeek}
+                className="premium-slider"
+                style={{
+                  background: `linear-gradient(to right, #667eea ${(currentTime / duration) * 100}%, rgba(255, 255, 255, 0.1) ${(currentTime / duration) * 100}%)`
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                <button
+                  onClick={handlePlayToggle}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontSize: '1.75rem',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  {isPlaying ? <FiPause /> : <FiPlay />}
+                </button>
+                <span style={{ fontSize: '0.9rem', fontFamily: 'monospace', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
+                  {formatTime(currentTime)} <span style={{ opacity: 0.3, margin: '0 8px' }}>/</span> <span style={{ color: '#667eea' }}>{formatTime(duration)}</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', width: isMobile ? '100px' : '180px' }}>
+                <button
+                  onClick={() => {
+                    const newMuted = !isMuted
+                    setIsMuted(newMuted)
+                    if (videoRef.current) videoRef.current.muted = newMuted
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex' }}
+                >
+                  {isMuted ? <FiVolumeX size={22} /> : <FiVolume2 size={22} />}
+                </button>
+                {!isMobile && (
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setVolume(v)
+                      if (videoRef.current) {
+                        videoRef.current.volume = v
+                        videoRef.current.muted = v === 0
+                        setIsMuted(v === 0)
+                      }
+                    }}
+                    className="premium-slider"
+                    style={{
+                      height: '4px',
+                      background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255, 255, 255, 0.1) ${volume * 100}%)`
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Dynamic Comments Sidebar */}
+        {showComments && (
+          <div className="glass-morphism" style={{
+            width: isMobile ? '100%' : '450px',
+            borderLeft: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '2rem',
+            animation: 'slideInRight 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <FiMessageCircle size={22} style={{ color: '#667eea' }} />
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Comments</h3>
+              </div>
+              <button
+                onClick={() => setShowComments(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: 'none',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <CommentsPanel contentType="video" contentId={video.id} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {showSubscriptionModal && (
-        <SubscriptionModal onClose={() => setShowSubscriptionModal(false)} />
-      )}
-    </div>
-  )
-}
-
-const VideoReelItem = ({ video, index, isActive, videoRef, onNext, onPrevious, canGoNext, canGoPrevious }) => {
-  const { isMobile } = useResponsive()
-  const { user, subscription } = useAuth()
-  const { addDownload, downloads } = useDownloads()
-  const [isLiked, setIsLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(0)
-  const [commentCount, setCommentCount] = useState(0)
-  const [showComments, setShowComments] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(true)
-  const [isMuted, setIsMuted] = useState(false)
-  const [showInterruptionModal, setShowInterruptionModal] = useState(false)
-  const videoElementRef = useRef(null)
-  const hasInterruptedRef = useRef(false)
-  const isFreeUser = !subscription && user?.role !== 'admin'
-  const isDownloaded = downloads?.some(
-    (d) => d.type === 'video' && d.id === video.id
-  )
-
-  useEffect(() => {
-    if (videoRef) {
-      videoRef(videoElementRef.current)
-    }
-
-    // Start loading video metadata even when not active (for faster switching)
-    const videoElement = videoElementRef.current
-    if (videoElement && videoElement.readyState === 0) {
-      videoElement.load()
-    }
-  }, [videoRef])
-
-  // Sync playing/mute state and handle interruption based on progress
-  useEffect(() => {
-    const videoElement = videoElementRef.current
-    if (!videoElement) return
-
-    const handlePlay = () => setIsPlaying(true)
-    const handlePause = () => setIsPlaying(false)
-    const handleVolumeChange = () => {
-      setIsMuted(videoElement.muted)
-    }
-    const handleTimeUpdate = () => {
-      const duration = videoElement.duration
-      const currentTime = videoElement.currentTime
-
-      if (
-        isFreeUser &&
-        !hasInterruptedRef.current &&
-        duration > 0 &&
-        currentTime >= duration * 0.25
-      ) {
-        videoElement.pause()
-        setIsPlaying(false)
-        setShowInterruptionModal(true)
-        hasInterruptedRef.current = true
-      }
-    }
-
-    videoElement.addEventListener('play', handlePlay)
-    videoElement.addEventListener('pause', handlePause)
-    videoElement.addEventListener('volumechange', handleVolumeChange)
-    videoElement.addEventListener('timeupdate', handleTimeUpdate)
-
-    // Initialize mute state
-    setIsMuted(videoElement.muted)
-
-    return () => {
-      videoElement.removeEventListener('play', handlePlay)
-      videoElement.removeEventListener('pause', handlePause)
-      videoElement.removeEventListener('volumechange', handleVolumeChange)
-      videoElement.removeEventListener('timeupdate', handleTimeUpdate)
-    }
-  }, [isFreeUser])
-
-  // Update playing state when video becomes active/inactive
-  useEffect(() => {
-    const videoElement = videoElementRef.current
-    if (!videoElement) return
-
-    if (isActive) {
-      hasInterruptedRef.current = false
-      setShowInterruptionModal(false)
-
-      // Start loading immediately when video becomes active
-      if (videoElement.readyState < 2) {
-        videoElement.load() // Force reload to start buffering
-      }
-
-      // Try to play as soon as we have enough data
-      const tryPlay = () => {
-        if (videoElement.readyState >= 2) { // HAVE_CURRENT_DATA
-          videoElement.play()
-            .then(() => setIsPlaying(true))
-            .catch(() => setIsPlaying(false))
-        }
-      }
-
-      // Try immediately if already loaded
-      tryPlay()
-
-      // Also try when data becomes available
-      videoElement.addEventListener('loadeddata', tryPlay, { once: true })
-      videoElement.addEventListener('canplay', tryPlay, { once: true })
-
-      return () => {
-        videoElement.removeEventListener('loadeddata', tryPlay)
-        videoElement.removeEventListener('canplay', tryPlay)
-      }
-    } else {
-      videoElement.pause()
-      setIsPlaying(false)
-      setShowInterruptionModal(false)
-    }
-  }, [isActive])
-
-  useEffect(() => {
-    // Fetch interaction counts
-    const fetchInteractions = async () => {
-      try {
-        const [likesRes, commentsRes] = await Promise.all([
-          axios.get(`/api/interactions/video/${video.id}/likes`).catch(() => ({ data: { count: 0, liked: false } })),
-          axios.get(`/api/interactions/video/${video.id}/comments`).catch(() => ({ data: { comments: [] } }))
-        ])
-        setLikeCount(likesRes.data.count || 0)
-        setIsLiked(likesRes.data.liked || false)
-        setCommentCount(commentsRes.data.comments?.length || 0)
-      } catch (err) {
-        console.error('Error fetching interactions:', err)
-      }
-    }
-    if (isActive) {
-      fetchInteractions()
-    }
-  }, [video.id, isActive])
-
-  const handleLike = async (e) => {
-    e.stopPropagation()
-    try {
-      const response = await axios.post(`/api/interactions/video/${video.id}/likes`)
-      setIsLiked(response.data.liked)
-      setLikeCount(prev => response.data.liked ? prev + 1 : prev - 1)
-    } catch (err) {
-      console.error('Error toggling like:', err)
-    }
-  }
-
-  const handleVideoClick = () => {
-    if (videoElementRef.current) {
-      if (videoElementRef.current.paused) {
-        videoElementRef.current.play()
-      } else {
-        videoElementRef.current.pause()
-      }
-    }
-  }
-
-  const handlePlayPause = (e) => {
-    e.stopPropagation()
-    if (videoElementRef.current) {
-      if (videoElementRef.current.paused) {
-        videoElementRef.current.play()
-      } else {
-        videoElementRef.current.pause()
-      }
-    }
-  }
-
-  const handleMuteToggle = (e) => {
-    e.stopPropagation()
-    if (videoElementRef.current) {
-      videoElementRef.current.muted = !videoElementRef.current.muted
-      setIsMuted(videoElementRef.current.muted)
-    }
-  }
-
-  const handleDownload = (e) => {
-    e.stopPropagation()
-    addDownload({
-      type: 'video',
-      id: video.id,
-      title: video.title,
-      description: video.description,
-      file_path: video.file_path
-    })
-  }
-
-  const handleInterruptionClose = () => {
-    setShowInterruptionModal(false)
-    // User can continue with free version, but video stays paused
-  }
-
-  const handleInterruptionUpgrade = () => {
-    setShowInterruptionModal(false)
-    // After upgrade, user can continue playing
-    if (videoElementRef.current) {
-      videoElementRef.current.play().then(() => {
-        setIsPlaying(true)
-      }).catch(() => {
-        console.error('Failed to resume playback')
-      })
-    }
-  }
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100vh',
-        position: 'relative',
-        scrollSnapAlign: 'start',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#000'
-      }}
-    >
-      {/* Video */}
-      <video
-        ref={videoElementRef}
-        src={`${import.meta.env.VITE_API_URL || ''}${video.file_path}`}
-        loop
-        muted={isMuted}
-        playsInline
-        preload={isActive ? "auto" : "metadata"}
-        crossOrigin="anonymous"
-        onCanPlay={() => {
-          // Video ready to play
-          if (isActive && videoElementRef.current) {
-            videoElementRef.current.play().catch(() => {
-              // Autoplay prevented, will need user interaction
-            })
-          }
-        }}
-        onCanPlay={() => {
-          // Video can start playing
-          if (isActive && videoElementRef.current && videoElementRef.current.paused) {
-            videoElementRef.current.play().catch(() => {
-              // Autoplay prevented
-            })
-          }
-        }}
-        onClick={handleVideoClick}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'contain',
-          cursor: 'pointer'
-        }}
-      />
-
-      {/* Video Controls - Top Center */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        gap: '0.75rem',
-        zIndex: 15,
-        alignItems: 'center'
-      }}>
-        {/* Play/Pause Button */}
-        <button
-          onClick={handlePlayPause}
-          style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: 'rgba(0, 0, 0, 0.6)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            transition: 'all 0.2s',
-            backdropFilter: 'blur(10px)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-            e.currentTarget.style.transform = 'scale(1.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'
-            e.currentTarget.style.transform = 'scale(1)'
-          }}
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? <FiPause /> : <FiPlay />}
-        </button>
-
-        {/* Mute/Unmute Button */}
-        <button
-          onClick={handleMuteToggle}
-          style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: 'rgba(0, 0, 0, 0.6)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            transition: 'all 0.2s',
-            backdropFilter: 'blur(10px)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-            e.currentTarget.style.transform = 'scale(1.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'
-            e.currentTarget.style.transform = 'scale(1)'
-          }}
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? <FiVolumeX /> : <FiVolume2 />}
-        </button>
-        {/* Download */}
-        <button
-          onClick={handleDownload}
-          disabled={isDownloaded}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: 'rgba(0, 0, 0, 0.6)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: isDownloaded ? '#22c55e' : '#fff',
-            cursor: isDownloaded ? 'default' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            transition: 'all 0.2s',
-            backdropFilter: 'blur(10px)'
-          }}
-          title={isDownloaded ? 'Saved' : 'Download for offline in‑app viewing'}
-        >
-          <FiDownload />
-        </button>
-      </div>
-
-      {/* Overlay UI - Right side actions (Better positioned to avoid scroll buttons) */}
-      <div style={{
-        position: 'absolute',
-        right: isMobile ? '10px' : '20px',
-        bottom: isMobile ? '80px' : '120px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.5rem',
-        zIndex: 10,
-        alignItems: 'center'
-      }}>
-        {/* Like button */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-          <button
-            onClick={handleLike}
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              background: isLiked ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              color: isLiked ? '#ef4444' : '#fff',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = isLiked ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255, 255, 255, 0.2)'
-              e.currentTarget.style.transform = 'scale(1.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = isLiked ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            <FiHeart style={{ fill: isLiked ? 'currentColor' : 'none' }} />
-          </button>
-          <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-            {likeCount > 0 ? (likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}K` : likeCount) : ''}
-          </span>
-        </div>
-
-        {/* Comment button */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowComments(!showComments)
-            }}
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              background: showComments ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
-              e.currentTarget.style.transform = 'scale(1.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = showComments ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.1)'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
-          >
-            <FiMessageCircle />
-          </button>
-          <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-            {commentCount > 0 ? (commentCount > 999 ? `${(commentCount / 1000).toFixed(1)}K` : commentCount) : ''}
-          </span>
-        </div>
-
-        {/* Share button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            if (navigator.share) {
-              navigator.share({
-                title: video.title,
-                text: video.description,
-                url: window.location.href
-              }).catch(() => { })
-            } else {
-              navigator.clipboard.writeText(window.location.href)
-              alert('Link copied to clipboard!')
-            }
-          }}
-          style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: 'none',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px',
-            transition: 'all 0.2s',
-            backdropFilter: 'blur(10px)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
-            e.currentTarget.style.transform = 'scale(1.1)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
-            e.currentTarget.style.transform = 'scale(1)'
-          }}
-        >
-          <FiShare2 />
-        </button>
-      </div>
-
-
-      {/* Interruption Modal */}
       {showInterruptionModal && (
         <UpgradeInterruptionModal
-          onClose={handleInterruptionClose}
-          onUpgrade={handleInterruptionUpgrade}
+          onClose={() => setShowInterruptionModal(false)}
+          onUpgrade={() => {
+            setShowInterruptionModal(false)
+            if (videoRef.current) videoRef.current.play()
+          }}
           contentType="video"
         />
-      )}
-
-      {/* Comments panel */}
-      {showComments && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '50%',
-          background: 'rgba(0, 0, 0, 0.95)',
-          backdropFilter: 'blur(20px)',
-          zIndex: 20,
-          borderTopLeftRadius: '20px',
-          borderTopRightRadius: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '1rem'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem',
-            paddingBottom: '1rem',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-          }}>
-            <h4 style={{ margin: 0, color: '#fff' }}>Comments</h4>
-            <button
-              onClick={() => setShowComments(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: '1.5rem',
-                padding: '0.25rem'
-              }}
-            >
-              <FiX />
-            </button>
-          </div>
-          <CommentsPanel contentType="video" contentId={video.id} />
-        </div>
       )}
     </div>
   )
@@ -979,70 +806,82 @@ const CommentsPanel = ({ contentType, contentId }) => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {user && (
-        <form onSubmit={handleAddComment} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment..."
-            style={{
-              width: '100%',
-              minHeight: '80px',
-              padding: '0.75rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              color: '#fff',
-              fontSize: '0.875rem',
-              fontFamily: 'inherit',
-              resize: 'none',
-              marginBottom: '0.75rem'
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!newComment.trim() || submitting}
-            style={{
-              padding: '0.5rem 1.5rem',
-              background: '#667eea',
-              border: 'none',
-              borderRadius: '6px',
-              color: '#fff',
-              fontSize: '0.875rem',
-              fontWeight: 'bold',
-              cursor: newComment.trim() && !submitting ? 'pointer' : 'not-allowed',
-              opacity: newComment.trim() && !submitting ? 1 : 0.5
-            }}
-          >
-            {submitting ? 'Posting...' : 'Post'}
-          </button>
+        <form onSubmit={handleAddComment} style={{ marginBottom: '1.5rem' }}>
+          <div style={{ position: 'relative' }}>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Share your thoughts..."
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '1rem',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '16px',
+                color: '#fff',
+                fontSize: '0.9rem',
+                fontFamily: 'inherit',
+                resize: 'none',
+                outline: 'none',
+                transition: 'border-color 0.3s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = 'rgba(102, 126, 234, 0.5)'}
+              onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
+            />
+            <button
+              type="submit"
+              disabled={!newComment.trim() || submitting}
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                right: '12px',
+                padding: '8px 20px',
+                background: '#667eea',
+                border: 'none',
+                borderRadius: '10px',
+                color: '#fff',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: newComment.trim() && !submitting ? 'pointer' : 'not-allowed',
+                opacity: newComment.trim() && !submitting ? 1 : 0.5,
+                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)'
+              }}
+            >
+              {submitting ? 'Post...' : 'Post'}
+            </button>
+          </div>
         </form>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem', scrollbarWidth: 'thin' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>Loading comments...</div>
+          <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>Loading comments...</div>
         ) : comments.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-            No comments yet. Be the first to comment!
+          <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5, border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px' }}>
+            No comments yet.<br />Be the first to share your thoughts!
           </div>
         ) : (
           comments.map(comment => (
             <div
               key={comment.id}
               style={{
-                padding: '0.75rem',
-                marginBottom: '0.75rem',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.1)'
+                padding: '1.25rem',
+                marginBottom: '1rem',
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'background 0.3s'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div style={{ flex: 1 }}>
-                  <strong style={{ color: '#fff', fontSize: '0.875rem', display: 'block', marginBottom: '0.25rem' }}>
+                  <strong style={{ color: '#fff', fontSize: '0.9rem', display: 'block', fontWeight: 700 }}>
                     {comment.user_name || comment.user_email || 'Anonymous'}
                   </strong>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.75rem' }}>
                     {formatDate(comment.created_at)}
                   </span>
                 </div>
@@ -1050,20 +889,24 @@ const CommentsPanel = ({ contentType, contentId }) => {
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
                     style={{
-                      background: 'transparent',
+                      background: 'rgba(239, 68, 68, 0.1)',
                       border: 'none',
                       color: '#ef4444',
                       cursor: 'pointer',
-                      padding: '0.25rem',
-                      fontSize: '0.875rem'
+                      padding: '6px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      transition: 'all 0.2s'
                     }}
-                    title="Delete comment"
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                    title="Delete"
                   >
-                    <FiX />
+                    <FiX size={14} />
                   </button>
                 )}
               </div>
-              <p style={{ color: '#fff', fontSize: '0.875rem', margin: 0, lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
+              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem', margin: 0, lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
                 {comment.comment_text}
               </p>
             </div>

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiPlus, FiEdit, FiTrash2, FiMusic, FiX, FiSearch } from 'react-icons/fi'
 
 const Albums = () => {
   const navigate = useNavigate()
   const [albums, setAlbums] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingAlbum, setEditingAlbum] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -92,6 +94,7 @@ const Albums = () => {
         <p style={{ color: '#999' }}>Create and manage albums</p>
       </div>
 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchAlbums() }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
         <input
           type="text"
@@ -136,7 +139,7 @@ const Albums = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : (
+      ) : error ? null : (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',

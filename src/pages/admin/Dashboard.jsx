@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { FiBarChart2, FiTrendingUp, FiUsers, FiMusic, FiVideo, FiImage, FiDollarSign, FiClock, FiArrowUp, FiArrowDown } from 'react-icons/fi'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { useResponsive } from '../../hooks/useResponsive'
 import { Link } from 'react-router-dom'
 
@@ -15,10 +16,13 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
+      setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/stats')
       setStats(response.data)
     } catch (err) {
       console.error('Error fetching stats:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -26,6 +30,18 @@ const Dashboard = () => {
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}><FiBarChart2 /> Dashboard Overview</h1>
+          <p style={{ color: '#999' }}>Welcome to your admin dashboard</p>
+        </div>
+        <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchStats() }} />
+      </div>
+    )
   }
 
   if (!stats) return null

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useResponsive } from '../../hooks/useResponsive'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiCalendar, FiEdit, FiTrash2, FiPlus, FiX, FiMusic, FiDisc, FiSearch } from 'react-icons/fi'
 
 const Upcoming = () => {
@@ -30,6 +31,7 @@ const Upcoming = () => {
   const fetchUpcoming = async () => {
     try {
       setLoading(true)
+      setError(null)
       const params = {}
       if (searchTerm) params.search = searchTerm
       if (filterType) params.type = filterType
@@ -37,6 +39,7 @@ const Upcoming = () => {
       setUpcoming(response.data.upcoming || [])
     } catch (err) {
       console.error('Error fetching upcoming releases:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -148,10 +151,11 @@ const Upcoming = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Manage upcoming songs and albums</p>
       </div>
 
-      <div style={{ 
-        marginBottom: '1rem', 
-        display: 'flex', 
-        gap: '1rem', 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchUpcoming() }} />
+      <div style={{
+        marginBottom: '1rem',
+        display: 'flex',
+        gap: '1rem',
         flexWrap: 'wrap',
         alignItems: 'center'
       }}>
@@ -236,7 +240,7 @@ const Upcoming = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '4rem', color: '#666' }}>Loading...</div>
-      ) : filteredUpcoming.length === 0 ? (
+      ) : error ? null : filteredUpcoming.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem', color: '#666' }}>
           No upcoming releases found.
         </div>

@@ -264,29 +264,11 @@ const Layout = ({ children }) => {
           <Link to="/profile" style={getLinkStyle('/profile')}>
             <FiSettings /> {(!isCollapsed || isMobile) && 'Profile'}
           </Link>
-          <button
-            onClick={handleLogout}
-            style={{
-              ...getLinkStyle('/logout'),
-              background: 'transparent',
-              border: 'none',
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              fontFamily: 'inherit'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#2a2a2a'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <FiLogOut /> {(!isCollapsed || isMobile) && 'Logout'}
-          </button>
-          
+
           {user?.role === 'admin' && (
             <>
               <div style={getSeparatorStyle()} />
-              <div style={getSectionHeaderStyle()}>
-                Admin
-              </div>
+              <div style={getSectionHeaderStyle()}>Admin</div>
               <Link to="/admin/dashboard" style={getLinkStyle('/admin/dashboard')}>
                 <FiBarChart2 /> {(!isCollapsed || isMobile) && 'Dashboard'}
               </Link>
@@ -353,6 +335,32 @@ const Layout = ({ children }) => {
             </>
           )}
         </nav>
+
+        <div style={{ flexShrink: 0, paddingTop: '0.5rem', borderTop: '1px solid #333' }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem',
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '8px',
+              color: '#fff',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              justifyContent: isCollapsed && !isMobile ? 'center' : 'flex-start'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2a' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+          >
+            <FiLogOut /> {(!isCollapsed || isMobile) && 'Log out'}
+          </button>
+        </div>
       </aside>
       <main style={{ 
         flex: 1, 

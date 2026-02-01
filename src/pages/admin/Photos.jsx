@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import ReactionsModal from '../../components/ReactionsModal'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
   FiUpload, FiArchive, FiTrash2, FiEdit, FiImage, 
@@ -31,12 +32,14 @@ const Photos = () => {
   const fetchPhotos = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/photos', {
         params: { archived: filterArchived, search: searchTerm }
       })
       setPhotos(response.data.photos || response.data)
     } catch (err) {
       console.error('Error fetching photos:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -119,12 +122,13 @@ const Photos = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Manage all your photos</p>
       </div>
 
-      <div style={{ 
-        display: 'flex', 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchPhotos() }} />
+      <div style={{
+        display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
-        justifyContent: 'space-between', 
-        alignItems: isMobile ? 'stretch' : 'center', 
-        marginBottom: '1rem', 
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
+        marginBottom: '1rem',
         gap: '1rem' 
       }}>
         <div style={{ 
@@ -263,7 +267,7 @@ const Photos = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : photos.length === 0 ? (
+      ) : photos.length === 0 && !error ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
           No photos found. Upload your first photo to get started!
         </div>

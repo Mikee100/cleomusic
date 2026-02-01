@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useResponsive } from '../../hooks/useResponsive'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiDollarSign } from 'react-icons/fi'
 
 const Payments = () => {
@@ -17,12 +18,14 @@ const Payments = () => {
   const fetchPayments = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/payments', {
         params: { status: statusFilter || undefined, method: methodFilter || undefined }
       })
       setPayments(response.data.payments)
     } catch (err) {
       console.error('Error fetching payments:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -44,6 +47,7 @@ const Payments = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>View all payment transactions</p>
       </div>
 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchPayments() }} />
       <div style={{ 
         display: 'flex', 
         flexDirection: isMobile ? 'column' : 'row',
@@ -88,7 +92,7 @@ const Payments = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: isMobile ? '1rem' : '2rem' }}>Loading...</div>
-      ) : isMobile ? (
+      ) : error ? null : isMobile ? (
         // Mobile: Card layout
         <div style={{
           display: 'flex',

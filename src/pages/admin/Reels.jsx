@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import ReactionsModal from '../../components/ReactionsModal'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
   FiUpload, FiArchive, FiTrash2, FiEdit, FiFilm, 
@@ -13,6 +14,7 @@ const Reels = () => {
   const { isMobile } = useResponsive()
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [editingVideo, setEditingVideo] = useState(null)
   const [selectedVideos, setSelectedVideos] = useState([])
@@ -33,12 +35,14 @@ const Reels = () => {
   const fetchVideos = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/videos', {
         params: { archived: filterArchived, search: searchTerm, kind: 'reel' }
       })
       setVideos(response.data.videos || response.data)
     } catch (err) {
       console.error('Error fetching reels:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -122,6 +126,7 @@ const Reels = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Create and manage short-form vertical reels (9:16 format)</p>
       </div>
 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchVideos() }} />
       <div style={{ 
         display: 'flex', 
         flexDirection: isMobile ? 'column' : 'row',
@@ -266,7 +271,7 @@ const Reels = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : videos.length === 0 ? (
+      ) : videos.length === 0 && !error ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
           No reels found. Upload your first reel to get started!
         </div>

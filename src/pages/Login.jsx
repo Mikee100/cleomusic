@@ -6,6 +6,7 @@ import { FiMail, FiLock, FiMusic } from 'react-icons/fi'
 const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -17,7 +18,7 @@ const Login = () => {
     setLoading(true)
 
     try {
-      await login(email, password)
+      await login(email, password, rememberMe)
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed')
@@ -191,7 +192,7 @@ const Login = () => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '2rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
             <label style={{
               display: 'flex',
               alignItems: 'center',
@@ -234,6 +235,24 @@ const Login = () => {
             </div>
           </div>
 
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '1.5rem',
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontSize: '0.875rem',
+            cursor: 'pointer'
+          }}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{ width: '1rem', height: '1rem', accentColor: '#667eea' }}
+            />
+            Remember me (stay signed in for 30 days)
+          </label>
+
           <button
             type="submit"
             disabled={loading}
@@ -272,6 +291,14 @@ const Login = () => {
           </button>
         </form>
 
+        <p style={{
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.6)',
+          fontSize: '0.875rem',
+          marginBottom: '0.5rem'
+        }}>
+          <Link to="/forgot-password" style={{ color: '#667eea', textDecoration: 'none' }}>Forgot password?</Link>
+        </p>
         <p style={{
           textAlign: 'center',
           color: 'rgba(255, 255, 255, 0.6)',

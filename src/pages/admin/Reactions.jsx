@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useResponsive } from '../../hooks/useResponsive'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiThumbsUp, FiThumbsDown, FiMessageCircle, FiFilter, FiX, FiTrash2 } from 'react-icons/fi'
 
 const Reactions = () => {
@@ -21,6 +22,7 @@ const Reactions = () => {
   const fetchReactions = async () => {
     try {
       setLoading(true)
+      setError(null)
       const params = new URLSearchParams()
       if (filters.type) params.append('type', filters.type)
       if (filters.contentType) params.append('contentType', filters.contentType)
@@ -30,6 +32,7 @@ const Reactions = () => {
       setSummary(response.data.summary || { likes: 0, dislikes: 0, comments: 0 })
     } catch (err) {
       console.error('Error fetching reactions:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -230,7 +233,9 @@ const Reactions = () => {
       </div>
 
       {/* Reactions List */}
-      {reactions.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>Loading...</div>
+      ) : error ? null : reactions.length === 0 ? (
         <div style={{
           textAlign: 'center',
           padding: isMobile ? '2rem 1rem' : '3rem',

@@ -13,6 +13,7 @@ const Videos = () => {
   const { isMobile } = useResponsive()
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [editingVideo, setEditingVideo] = useState(null)
   const [selectedVideos, setSelectedVideos] = useState([])
@@ -33,12 +34,20 @@ const Videos = () => {
   const fetchVideos = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/videos', {
         params: { archived: filterArchived, search: searchTerm, kind: 'video' }
       })
       setVideos(response.data.videos || response.data)
     } catch (err) {
       console.error('Error fetching videos:', err)
+      const status = err.response?.status
+      const msg = err.response?.data?.error || err.message || 'Failed to load videos'
+      if (status === 401) setError('Not signed in. Please log in again.')
+      else if (status === 403) setError('You don’t have permission to view this page.')
+      else if (status >= 500) setError(`Server error: ${msg}`)
+      else if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') setError('Cannot reach the server. Check VITE_API_URL and that the backend is running.')
+      else setError(msg)
     } finally {
       setLoading(false)
     }
@@ -264,9 +273,39 @@ const Videos = () => {
         </div>
       )}
 
+      {error && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '8px',
+          padding: '1rem 1.25rem',
+          marginBottom: '1rem',
+          color: '#fca5a5',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <span>{error}</span>
+          <button
+            onClick={() => { setError(null); fetchVideos() }}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'rgba(239, 68, 68, 0.3)',
+              border: '1px solid rgba(239, 68, 68, 0.5)',
+              borderRadius: '6px',
+              color: '#fff',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : videos.length === 0 ? (
+      ) : videos.length === 0 && !error ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
           No videos found. Upload your first video to get started!
         </div>

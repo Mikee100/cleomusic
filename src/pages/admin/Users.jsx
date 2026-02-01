@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useResponsive } from '../../hooks/useResponsive'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiUsers, FiSearch, FiX } from 'react-icons/fi'
 
 const Users = () => {
@@ -65,7 +66,7 @@ const Users = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: isMobile ? '1rem' : '2rem' }}>Loading...</div>
-      ) : (
+      ) : error ? null : (
         <div style={{
           display: 'grid',
           gridTemplateColumns: isMobile 

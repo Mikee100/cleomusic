@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { usePlayer } from '../../context/PlayerContext'
 import ReactionsModal from '../../components/ReactionsModal'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
   FiUpload, FiArchive, FiTrash2, FiEdit, FiMusic, FiPlay, 
@@ -13,6 +14,7 @@ const Songs = () => {
   const { isMobile } = useResponsive()
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [editingSong, setEditingSong] = useState(null)
   const [selectedSongs, setSelectedSongs] = useState([])
@@ -49,12 +51,14 @@ const Songs = () => {
   const fetchSongs = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/songs', {
         params: { archived: filterArchived, search: searchTerm }
       })
       setSongs(response.data.songs)
     } catch (err) {
       console.error('Error fetching songs:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -144,10 +148,11 @@ const Songs = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Manage all your songs</p>
       </div>
 
-      <div style={{ 
-        display: 'flex', 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchSongs() }} />
+      <div style={{
+        display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
-        justifyContent: 'space-between', 
+        justifyContent: 'space-between',
         alignItems: isMobile ? 'stretch' : 'center', 
         marginBottom: '1rem', 
         gap: '1rem' 
@@ -288,7 +293,7 @@ const Songs = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : songs.length === 0 ? (
+      ) : songs.length === 0 && !error ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
           No songs found. Upload your first song to get started!
         </div>

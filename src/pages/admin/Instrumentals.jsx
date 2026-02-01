@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { usePlayer } from '../../context/PlayerContext'
 import ReactionsModal from '../../components/ReactionsModal'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { useResponsive } from '../../hooks/useResponsive'
 import { 
   FiUpload, FiArchive, FiTrash2, FiEdit, FiMusic, FiPlay, 
@@ -48,12 +49,14 @@ const Instrumentals = () => {
   const fetchInstrumentals = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/instrumentals', {
         params: { archived: filterArchived, search: searchTerm }
       })
       setInstrumentals(response.data.instrumentals || [])
     } catch (err) {
       console.error('Error fetching instrumentals:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -185,7 +188,7 @@ const Instrumentals = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
-      ) : instrumentals.length === 0 ? (
+      ) : instrumentals.length === 0 && !error ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
           No instrumentals found. Upload your first instrumental to get started!
         </div>

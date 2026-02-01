@@ -1,17 +1,65 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import SubscriptionModal from '../components/SubscriptionModal'
-import { FiUser, FiMail, FiCalendar, FiCheckCircle, FiAlertCircle, FiEdit2 } from 'react-icons/fi'
+import { FiUser, FiMail, FiCalendar, FiCheckCircle, FiAlertCircle, FiEdit2, FiMonitor, FiLogOut } from 'react-icons/fi'
 
 const Profile = () => {
-  const { user, subscription, fetchUser } = useAuth()
+  const { user, subscription, fetchUser, logout, getSessions, revokeSession, revokeOtherSessions, getCurrentSessionId } = useAuth()
   const [name, setName] = useState(user?.name || '')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [sessionsError, setSessionsError] = useState('')
+  const [revoking, setRevoking] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setSessionsLoading(true)
+    setSessionsError('')
+    getSessions()
+      .then((list) => { if (!cancelled) { setSessions(list); setSessionsError('') } })
+      .catch(() => { if (!cancelled) setSessionsError('Failed to load sessions') })
+      .finally(() => { if (!cancelled) setSessionsLoading(false) })
+    return () => { cancelled = true }
+  }, [getSessions])
+
+  const loadSessions = () => {
+    setSessionsLoading(true)
+    setSessionsError('')
+    getSessions()
+      .then((list) => { setSessions(list); setSessionsError('') })
+      .catch(() => setSessionsError('Failed to load sessions'))
+      .finally(() => setSessionsLoading(false))
+  }
+
+  const handleRevokeSession = async (jti) => {
+    setRevoking(jti)
+    try {
+      await revokeSession(jti)
+      setSessions((prev) => prev.filter((s) => s.id !== jti))
+      if (jti === getCurrentSessionId()) await logout()
+    } catch (_) {}
+    setRevoking(null)
+  }
+
+  const handleRevokeOthers = async () => {
+    setRevoking('others')
+    try {
+      await revokeOtherSessions()
+      loadSessions()
+    } catch (_) {}
+    setRevoking(null)
+  }
+
+  const sessionLabel = (s) => {
+    const ua = (s.user_agent || '').slice(0, 60)
+    return ua || 'Unknown device'
+  }
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -280,6 +328,123 @@ const Profile = () => {
                   View subscription plans
                 </button>
               </>
+            )}
+          </div>
+
+          {/* Active sessions */}
+          <div style={{
+            gridColumn: '1 / -1',
+            background: '#111827',
+            borderRadius: '12px',
+            border: '1px solid #1f2937',
+            padding: '1.5rem'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FiMonitor /> Active sessions
+              </h2>
+              {sessions.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleRevokeOthers}
+                  disabled={!!revoking}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid #ef4444',
+                    background: 'transparent',
+                    color: '#f87171',
+                    fontSize: '0.875rem',
+                    cursor: revoking ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <FiLogOut /> Log out all other devices
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#9CA3AF', marginBottom: '1rem' }}>
+              Devices where you are signed in. Revoke any session to sign out that device.
+            </p>
+            {sessionsError ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <span style={{ color: '#f87171', fontSize: '0.9rem' }}>{sessionsError}</span>
+                <button
+                  type="button"
+                  onClick={loadSessions}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid #374151',
+                    background: '#374151',
+                    color: '#e5e7eb',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : sessionsLoading ? (
+              <div style={{ color: '#9CA3AF', fontSize: '0.9rem' }}>Loading sessions...</div>
+            ) : sessions.length === 0 ? (
+              <div style={{ color: '#6B7280', fontSize: '0.9rem' }}>No active sessions.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      background: '#020617',
+                      borderRadius: '8px',
+                      border: '1px solid #374151'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.9rem', color: '#E5E7EB', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {sessionLabel(s)}
+                        {getCurrentSessionId() === s.id && (
+                          <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 500 }}>(current)</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#6B7280' }}>
+                        Signed in {formatDate(s.created_at)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeSession(s.id)}
+                      disabled={revoking === s.id}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '6px',
+                        border: '1px solid #374151',
+                        background: 'transparent',
+                        color: '#f87171',
+                        fontSize: '0.8rem',
+                        cursor: revoking === s.id ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {revoking === s.id ? 'Revoking...' : 'Revoke'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

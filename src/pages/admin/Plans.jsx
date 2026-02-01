@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useResponsive } from '../../hooks/useResponsive'
+import AdminErrorBanner, { getAdminErrorMessage } from '../../components/AdminErrorBanner'
 import { FiPackage, FiEdit, FiTrash2, FiPlus, FiX } from 'react-icons/fi'
 
 const Plans = () => {
   const { isMobile } = useResponsive()
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState(null)
   const [formData, setFormData] = useState({
@@ -25,10 +27,12 @@ const Plans = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await axios.get('/api/admin/plans')
       setPlans(response.data)
     } catch (err) {
       console.error('Error fetching plans:', err)
+      setError(getAdminErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -77,6 +81,7 @@ const Plans = () => {
         <p style={{ color: '#999', fontSize: isMobile ? '0.875rem' : '1rem' }}>Manage subscription plans</p>
       </div>
 
+      <AdminErrorBanner error={error} onRetry={() => { setError(null); fetchPlans() }} />
       <div style={{ marginBottom: '1rem' }}>
         <button
           onClick={() => {
@@ -106,7 +111,7 @@ const Plans = () => {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: isMobile ? '1rem' : '2rem' }}>Loading...</div>
-      ) : (
+      ) : error ? null : (
         <div style={{
           display: 'grid',
           gridTemplateColumns: isMobile 
